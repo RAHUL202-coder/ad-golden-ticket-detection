@@ -1,0 +1,19 @@
+{
+  "scriptFile": "__init__.py",
+  "bindings": [
+    {
+      "name": "myblob",
+      "type": "blobTrigger",
+      "direction": "in",
+      "path": "artifacts/{name}",
+      "connection": "MEMDUMP_STORAGE_CONN"
+    },
+    {
+      "name": "sbMessage",
+      "type": "serviceBus",
+      "direction": "out",
+      "queueName": "memory-dump-queue",
+      "connection": "SERVICEBUS_CONNECTION"
+    }
+  ]
+}

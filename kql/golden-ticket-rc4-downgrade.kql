@@ -1,0 +1,20 @@
+// Golden Ticket - RC4 Encryption Downgrade
+// Detects Kerberos TGS requests using RC4 (0x17) encryption in environments
+// where AES is enforced — a strong indicator of a forged Golden Ticket.
+SecurityEvent
+| where EventID == 4769
+| where TimeGenerated > ago(1h)
+| extend TicketEncryptionType = tostring(extract(@"Ticket Encryption Type:\s+(0x\w+)", 1, EventData))
+| where TicketEncryptionType == "0x17"
+| extend ServiceName      = tostring(extract(@"Service Name:\s+(\S+)",      1, EventData))
+| extend ClientAddress    = tostring(extract(@"Client Address:\s+(\S+)",    1, EventData))
+| extend TargetUserName   = tostring(extract(@"Account Name:\s+(\S+)",      1, EventData))
+| where ServiceName !endswith "$"
+| where ClientAddress !startswith "::1"
+| summarize
+    RC4Count     = count(),
+    Services     = make_set(ServiceName),
+    SourceIPs    = make_set(ClientAddress)
+  by TargetUserName, bin(TimeGenerated, 5m)
+| where RC4Count >= 2
+| extend Severity = "High", RuleName = "GT-RC4-Downgrade"

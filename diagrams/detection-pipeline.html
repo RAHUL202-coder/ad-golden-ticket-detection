@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AD Detection Pipeline — MTech Capstone</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.5px;
+    }
+
+    header p {
+      margin-top: 8px;
+      font-size: 0.95rem;
+      color: #8b8fa8;
+    }
+
+    .badge-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .badge {
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+    }
+
+    .badge-blue   { background: #0078d4; color: #fff; }
+    .badge-purple { background: #7719aa; color: #fff; }
+    .badge-green  { background: #1e7e34; color: #fff; }
+    .badge-red    { background: #d13438; color: #fff; }
+    .badge-orange { background: #e8a000; color: #000; }
+
+    .card {
+      background: #1a1d2e;
+      border: 1px solid #2a2d3e;
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #a0a4c0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #2a2d3e;
+      padding-bottom: 10px;
+    }
+
+    .diagram-wrap {
+      overflow-x: auto;
+      display: flex;
+      justify-content: center;
+    }
+
+    .diagram-wrap .mermaid {
+      min-width: 860px;
+    }
+
+    /* ── Summary Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    thead th {
+      background: #22263a;
+      color: #a0a4c0;
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      font-size: 0.78rem;
+    }
+
+    tbody tr { border-bottom: 1px solid #2a2d3e; }
+    tbody tr:last-child { border-bottom: none; }
+
+    tbody td {
+      padding: 10px 14px;
+      color: #c8cce0;
+      vertical-align: top;
+    }
+
+    tbody td:first-child {
+      color: #ffffff;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    tbody td code {
+      background: #22263a;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.82rem;
+      color: #79c0ff;
+    }
+
+    /* ── Resource Cards ── */
+    .resource-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+    }
+
+    .res-card {
+      background: #22263a;
+      border-radius: 8px;
+      padding: 14px 16px;
+      border-left: 4px solid #0078d4;
+    }
+
+    .res-card.sentinel { border-left-color: #7719aa; }
+    .res-card.vm       { border-left-color: #1e7e34; }
+    .res-card.alert    { border-left-color: #d13438; }
+    .res-card.storage  { border-left-color: #e8a000; }
+
+    .res-card .res-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+
+    .res-card .res-sub {
+      font-size: 0.75rem;
+      color: #8b8fa8;
+      line-height: 1.4;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.78rem;
+      color: #555870;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse</h1>
+  <p>MTech Capstone · Full Azure Detection Pipeline · corp.local</p>
+  <div class="badge-row">
+    <span class="badge badge-blue">Azure Monitor Agent</span>
+    <span class="badge badge-purple">Microsoft Sentinel</span>
+    <span class="badge badge-green">Volatility 3</span>
+    <span class="badge badge-orange">Azure Functions</span>
+    <span class="badge badge-red">11 KQL Detection Rules</span>
+  </div>
+</header>
+
+<!-- ── Flowchart ── -->
+<div class="card">
+  <h2>Detection Pipeline Flowchart</h2>
+  <div class="diagram-wrap">
+    <div class="mermaid">
+flowchart TD
+    subgraph DC["🖥️ Domain Controller  (WIN-09GD99A8DPG · corp.local)"]
+        A1([Kerberos Events\nEventID 4768 / 4769])
+        A2([LSASS Memory\nlsass.exe])
+        A3[SIDHistory Scanner\nGet-ADUser PowerShell]
+    end
+
+    subgraph AMA["📡 Azure Monitor Agent v1.42.0.0  (Arc-managed)"]
+        B1[DCR-Security-Kerberos\nData Collection Rule]
+    end
+
+    subgraph SIEM["🛡️ Microsoft Sentinel  (HybridDetectionWS)"]
+        C1[(SecurityEvent Table)]
+        C2{11 KQL Analytics Rules\nscheduled queries}
+        C3([Sentinel Incident\nCreated])
+    end
+
+    subgraph FA["⚡ GoldenTicketProcessor  (Function App)"]
+        D1[Alert Webhook\nReceived]
+        D2[Capture LSASS Dump\nWinRM → DC]
+        D3[Upload Dump\nto Blob Storage]
+        D4[Enqueue Job\nService Bus message]
+    end
+
+    subgraph STOR["🗄️ Azure Blob Storage"]
+        E1[(memorydumps\ncontainer)]
+        E2[(sidhistory\ncontainer)]
+    end
+
+    subgraph SB["📨 Service Bus  (HybridDetSB-76e0ae)"]
+        F1[memory-dump-queue]
+    end
+
+    subgraph VOL["🔬 Volatility VM  (Ubuntu 20.04 · Standard_D2s_v3)"]
+        G1[Queue Listener\nPython · systemd]
+        G2[Download Dump\nfrom Blob]
+        G3[Volatility 3 Plugins\nlsadump · malfind\npslist · netscan]
+        G4{Golden Ticket\nIndicators?}
+        G5[Risk Scoring\nCRITICAL / HIGH / MED]
+        G6[Upload JSON Results\nto Blob Storage]
+        G7[POST Results\nto Function App]
+    end
+
+    subgraph RESULT["📊 Enriched Sentinel Incident"]
+        H1[Volatility Memory Rule\nfires on result]
+        H2([HIGH / CRITICAL\nIncident Created])
+        H3[Incident Enriched\nwith Memory Evidence]
+    end
+
+    A1 -->|Security Event Log| B1
+    B1 -->|Log Ingestion| C1
+    C1 --> C2
+    C2 -->|Threshold exceeded| C3
+    C3 -->|Alert webhook| D1
+    A2 -.->|WinRM remote dump| D2
+    D1 --> D2 --> D3 --> D4
+    D3 -->|Upload .dmp| E1
+    D4 --> F1
+    A3 -->|Scheduled export| E2
+    E2 -.->|KQL cross-reference| C2
+    F1 -->|Dequeue job| G1
+    G1 --> G2
+    E1 -->|Download .dmp| G2
+    G2 --> G3
+    G3 --> G4
+    G4 -->|Yes — artifacts found| G5
+    G4 -->|No artifacts| G6
+    G5 --> G6 --> G7
+    G7 -->|Trigger enrichment| H1
+    H1 --> H2 --> H3
+
+    classDef azure    fill:#0078d4,color:#fff,stroke:#005a9e,stroke-width:1.5px
+    classDef sentinel fill:#7719aa,color:#fff,stroke:#5a0e80,stroke-width:1.5px
+    classDef storage  fill:#e8a000,color:#000,stroke:#b07800,stroke-width:1.5px
+    classDef vm       fill:#1e7e34,color:#fff,stroke:#155724,stroke-width:1.5px
+    classDef alertcls fill:#d13438,color:#fff,stroke:#a4262c,stroke-width:1.5px
+
+    class B1,D1,D2,D3,D4,F1 azure
+    class C1,C2,H1 sentinel
+    class E1,E2 storage
+    class G1,G2,G3,G5,G6,G7 vm
+    class C3,H2,H3 alertcls
+    </div>
+  </div>
+</div>
+
+<!-- ── Resource Status ── -->
+<div class="card">
+  <h2>Active Azure Resources</h2>
+  <div class="resource-grid">
+    <div class="res-card">
+      <div class="res-title">VolatilityAnalysisVM</div>
+      <div class="res-sub">Standard_D2s_v3 · Ubuntu 20.04<br>IP: <code>4.154.237.211</code></div>
+    </div>
+    <div class="res-card sentinel">
+      <div class="res-title">HybridDetectionWS</div>
+      <div class="res-sub">Log Analytics + Sentinel<br>11 scheduled KQL rules</div>
+    </div>
+    <div class="res-card">
+      <div class="res-title">GoldenTicketProcessor</div>
+      <div class="res-sub">Azure Function App<br>Consumption plan</div>
+    </div>
+    <div class="res-card">
+      <div class="res-title">HybridDetSB-76e0ae</div>
+      <div class="res-sub">Service Bus Namespace<br>memory-dump-queue</div>
+    </div>
+    <div class="res-card storage">
+      <div class="res-title">memorydumps202605121306</div>
+      <div class="res-sub">Blob Storage<br>LSASS dump container</div>
+    </div>
+    <div class="res-card storage">
+      <div class="res-title">sidhistory202605121306</div>
+      <div class="res-sub">Blob Storage<br>SIDHistory export container</div>
+    </div>
+    <div class="res-card vm">
+      <div class="res-title">DCR-Security-Kerberos</div>
+      <div class="res-sub">Data Collection Rule<br>4768 / 4769 events → Sentinel</div>
+    </div>
+    <div class="res-card alert">
+      <div class="res-title">AMA v1.42.0.0</div>
+      <div class="res-sub">Arc-managed agent<br>WIN-09GD99A8DPG</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Pipeline Summary Table ── -->
+<div class="card">
+  <h2>Pipeline Phase Summary</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Phase</th>
+        <th>Component</th>
+        <th>Role</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1 — Event Collection</td>
+        <td>AMA + DCR-Security-Kerberos</td>
+        <td>Streams Kerberos events (4768/4769) from Domain Controller to Sentinel SecurityEvent table</td>
+      </tr>
+      <tr>
+        <td>2 — Detection</td>
+        <td>Sentinel KQL (11 rules)</td>
+        <td>Detects RC4 downgrade, Pass-the-Ticket, SIDHistory injection, AES ratio anomalies, Skeleton Key</td>
+      </tr>
+      <tr>
+        <td>3 — Memory Trigger</td>
+        <td>GoldenTicketProcessor</td>
+        <td>Alert webhook fires → WinRM captures LSASS dump → uploads to Blob → enqueues Service Bus job</td>
+      </tr>
+      <tr>
+        <td>4 — Forensics</td>
+        <td>Volatility VM</td>
+        <td>Dequeues job, downloads dump, runs <code>lsadump</code> / <code>malfind</code> / <code>pslist</code> / <code>netscan</code>, scores risk</td>
+      </tr>
+      <tr>
+        <td>5 — Enrichment</td>
+        <td>Results → Sentinel</td>
+        <td>JSON evidence POSTed back; Volatility analytics rule fires; enriched HIGH/CRITICAL incident created</td>
+      </tr>
+      <tr>
+        <td>Parallel</td>
+        <td>SIDHistory Scanner</td>
+        <td>Scheduled PowerShell on DC exports SIDHistory entries; KQL rules cross-reference suspicious SIDs</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>HybridDetectionRG · Subscription 76e0ae82 · corp.local · MTech Capstone 2026</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#0078d4',
+      primaryTextColor: '#ffffff',
+      primaryBorderColor: '#005a9e',
+      lineColor: '#5a6080',
+      secondaryColor: '#22263a',
+      tertiaryColor: '#1a1d2e',
+      background: '#1a1d2e',
+      mainBkg: '#1a1d2e',
+      nodeBorder: '#2a2d3e',
+      clusterBkg: '#22263a',
+      titleColor: '#a0a4c0',
+      edgeLabelBackground: '#1a1d2e',
+      fontFamily: 'Segoe UI, Tahoma, sans-serif',
+      fontSize: '14px'
+    },
+    flowchart: {
+      curve: 'basis',
+      padding: 20
+    }
+  });
+</script>
+</body>
+</html>

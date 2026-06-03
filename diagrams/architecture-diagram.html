@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Architecture Diagram — AD Detection Framework</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0e1a;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #e0e4f0;
+    min-height: 100vh;
+    padding: 36px 24px 48px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  header h1 {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: .3px;
+  }
+
+  header p {
+    margin-top: 7px;
+    font-size: .85rem;
+    color: #5a6080;
+  }
+
+  /* ── Stats bar ── */
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .stat {
+    background: #141824;
+    border: 1px solid #22263a;
+    border-radius: 8px;
+    padding: 9px 20px;
+    text-align: center;
+    min-width: 100px;
+  }
+
+  .stat-val {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-lbl {
+    font-size: .67rem;
+    color: #5a6080;
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+
+  /* ── Diagram card ── */
+  .diagram-card {
+    background: #111420;
+    border: 1px solid #1e2235;
+    border-radius: 14px;
+    padding: 30px 24px 24px;
+    overflow-x: auto;
+  }
+
+  .diagram-card h2 {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    color: #3a4060;
+    margin-bottom: 22px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #1e2235;
+  }
+
+  /* centre the SVG Mermaid produces */
+  .mermaid {
+    display: flex;
+    justify-content: center;
+  }
+
+  .mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 22px;
+  }
+
+  .leg {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: .74rem;
+    color: #6b7194;
+  }
+
+  .leg-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  footer {
+    text-align: center;
+    font-size: .7rem;
+    color: #2a2d40;
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse</h1>
+  <p>Azure Architecture · HybridDetectionRG · Subscription 76e0ae82 · corp.local · MTech Capstone 2026</p>
+</header>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat"><div class="stat-val">11</div><div class="stat-lbl">KQL Rules</div></div>
+  <div class="stat"><div class="stat-val">5</div><div class="stat-lbl">Pipeline Phases</div></div>
+  <div class="stat"><div class="stat-val">8</div><div class="stat-lbl">Azure Resources</div></div>
+  <div class="stat"><div class="stat-val">4.154.237.211</div><div class="stat-lbl">Volatility VM IP</div></div>
+  <div class="stat"><div class="stat-val">~₹21/day</div><div class="stat-lbl">Paused Cost</div></div>
+  <div class="stat"><div class="stat-val">~₹163/day</div><div class="stat-lbl">Running Cost</div></div>
+</div>
+
+<!-- Mermaid diagram -->
+<div class="diagram-card">
+  <h2>Full Detection Pipeline — Architecture</h2>
+  <div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"primaryColor": "#1e2644", "primaryTextColor": "#dde2f2", "primaryBorderColor": "#384070", "lineColor": "#4a5480", "clusterBkg": "#0f1322", "clusterBorder": "#283050", "titleColor": "#8090b8", "edgeLabelBackground": "#111420", "fontFamily": "Segoe UI, sans-serif", "fontSize": "13px"}, "flowchart": {"curve": "basis", "padding": 22}}}%%
+flowchart TD
+
+    subgraph DC["🏢 Domain Controller - WIN-09GD99A8DPG - corp.local"]
+        A4[Active Directory KDC\ncorp.local Domain]
+        A1([Kerberos Events\nEventID 4768 / 4769])
+        A2([LSASS Process Memory\nlsass.exe])
+        A3[SIDHistory Scanner\nGet-ADUser PowerShell]
+        A4 --> A1
+    end
+
+    subgraph AGENT["📡 Log Collection - Azure Monitor Agent v1.42.0.0 - Arc-managed"]
+        B1[DCR-Security-Kerberos\nData Collection Rule to HybridDetectionWS]
+    end
+
+    subgraph SENTINEL["🛡️ Microsoft Sentinel - HybridDetectionWS"]
+        C1[(SecurityEvent\nTable)]
+        C2{KQL Analytics Rules\n11 Scheduled Queries}
+        C3([Sentinel Incident\nHIGH / CRITICAL])
+        C1 --> C2 --> C3
+    end
+
+    subgraph AZURE["☁️ Azure Cloud - HybridDetectionRG"]
+        D1[GoldenTicketProcessor\nAzure Function App]
+        D2[HybridDetSB-76e0ae\nService Bus Queue]
+        E1[(memorydumps\nBlob Storage)]
+        E2[(sidhistory\nBlob Storage)]
+    end
+
+    subgraph VOL["🔬 Volatility VM - Ubuntu 20.04 - Standard_D2s_v3 - 4.154.237.211"]
+        G1[Queue Listener\nPython systemd service]
+        G2[Volatility 3 Analysis\nlsadump / malfind / pslist / netscan]
+        G3{Golden Ticket\nArtifacts Found?}
+        G4[Risk Scorer\nCRITICAL / HIGH / MED]
+        G5[Result Publisher\nJSON to Blob and Sentinel]
+        G1 --> G2 --> G3
+        G3 -->|Yes| G4 --> G5
+        G3 -->|No| G5
+    end
+
+    A1 -->|Security Event Log| B1
+    B1 -->|Log Ingestion| C1
+    C3 -->|Alert Webhook| D1
+    A2 -.->|WinRM - Capture LSASS Dump| D1
+    D1 -->|Upload .dmp| E1
+    D1 -->|Enqueue Job| D2
+    A3 -->|JSON Export| E2
+    E2 -.->|KQL Cross-Reference| C2
+    D2 -->|Dequeue Job| G1
+    E1 -->|Download .dmp| G1
+    G5 -->|Trigger Volatility Rule| C2
+
+    classDef dcNode    fill:#182030,stroke:#3a6090,color:#b8ccee,stroke-width:1.5px
+    classDef amaNode   fill:#0c1c38,stroke:#0078d4,color:#90c8ff,stroke-width:1.5px
+    classDef siemNode  fill:#1e0c38,stroke:#7719aa,color:#c898ff,stroke-width:1.5px
+    classDef alertNode fill:#280c10,stroke:#d13438,color:#ff9898,stroke-width:2px
+    classDef azureNode fill:#0c1c38,stroke:#0065b8,color:#90c8ff,stroke-width:1.5px
+    classDef storNode  fill:#28160a,stroke:#e8a000,color:#ffd070,stroke-width:1.5px
+    classDef vmNode    fill:#0a1c10,stroke:#1a7a2e,color:#80e898,stroke-width:1.5px
+
+    class A1,A2,A3,A4 dcNode
+    class B1 amaNode
+    class C1,C2 siemNode
+    class C3 alertNode
+    class D1,D2 azureNode
+    class E1,E2 storNode
+    class G1,G2,G3,G4,G5 vmNode
+
+    style DC       fill:#0e1520,stroke:#1e3050,color:#6090c0
+    style AGENT    fill:#08121e,stroke:#0058a0,color:#4098d8
+    style SENTINEL fill:#130a22,stroke:#4a1878,color:#9058d8
+    style AZURE    fill:#08121e,stroke:#183858,color:#4098d8
+    style VOL      fill:#08110a,stroke:#124820,color:#40b858
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#3a6090;"></div>On-Premises DC</div>
+  <div class="leg"><div class="leg-dot" style="background:#0078d4;"></div>Azure / AMA</div>
+  <div class="leg"><div class="leg-dot" style="background:#7719aa;"></div>Microsoft Sentinel</div>
+  <div class="leg"><div class="leg-dot" style="background:#d13438;"></div>Alert / Incident</div>
+  <div class="leg"><div class="leg-dot" style="background:#e8a000;"></div>Blob Storage</div>
+  <div class="leg"><div class="leg-dot" style="background:#1e7e34;"></div>Volatility Forensics</div>
+  <div class="leg"><div class="leg-dot" style="background:#404870;border:1px dashed #7080a8;"></div>Async / Indirect flow</div>
+</div>
+
+<footer>
+  HybridDetectionRG &nbsp;·&nbsp; Subscription 76e0ae82-1f95-44ed-a9af-13a1df28a08c &nbsp;·&nbsp; corp.local &nbsp;·&nbsp; MTech Capstone 2026
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: 'loose'
+  });
+</script>
+</body>
+</html>

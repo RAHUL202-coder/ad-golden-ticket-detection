@@ -1,0 +1,23 @@
+// Volatility Memory Analysis - HIGH/CRITICAL Risk Indicator
+// Fires when the Volatility pipeline posts a HIGH or CRITICAL
+// risk score back to Log Analytics after analysing an LSASS dump.
+// This is the memory-forensics enrichment layer — confirms in-memory
+// Golden Ticket artifacts that event logs alone cannot detect.
+VolatilityAnalysis_CL
+| where TimeGenerated > ago(24h)
+| where riskLevel_s in ("HIGH", "CRITICAL")
+| extend BlobName      = blobName_s
+| extend Indicator     = indicator_s
+| extend EncType       = encryptionType_s
+| extend PluginHits    = pluginResults_s
+| extend AnalysisTime  = analysisTime_d
+| project
+    TimeGenerated,
+    BlobName,
+    Indicator,
+    EncType,
+    PluginHits,
+    AnalysisTime,
+    RiskLevel = riskLevel_s
+| extend Severity = iff(RiskLevel == "CRITICAL", "Critical", "High")
+| extend RuleName = "Volatility-MemoryHit"

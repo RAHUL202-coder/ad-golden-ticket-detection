@@ -1,0 +1,18 @@
+// SIDHistory - High-Risk Privileged SID Injection
+// Detects logon events where the SIDHistory attribute contains
+// Domain Admins (512), Enterprise Admins (519), or Schema Admins (518).
+// These SIDs in SIDHistory grant equivalent privileges without being
+// visible in normal group membership queries.
+let PrivilegedSIDs = dynamic(["512", "519", "518", "520", "544"]);
+SecurityEvent
+| where EventID in (4624, 4672)
+| where TimeGenerated > ago(1h)
+| extend SIDHistory     = tostring(extract(@"SID History:\s+(\S+)",    1, EventData))
+| extend AccountName    = tostring(extract(@"Account Name:\s+(\S+)",   1, EventData))
+| extend LogonType      = tostring(extract(@"Logon Type:\s+(\d+)",     1, EventData))
+| extend WorkstationName= tostring(extract(@"Workstation Name:\s+(\S+)", 1, EventData))
+| where isnotempty(SIDHistory)
+| extend SIDSuffix = tostring(split(SIDHistory, "-")[-1])
+| where SIDSuffix in (PrivilegedSIDs)
+| extend Severity = "Critical", RuleName = "SID-HighRiskPrivilege"
+| project TimeGenerated, AccountName, SIDHistory, SIDSuffix, LogonType, WorkstationName, Severity, RuleName

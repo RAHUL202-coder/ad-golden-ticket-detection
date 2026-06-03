@@ -1,0 +1,36 @@
+# Secrets and credentials
+*.env
+.env.*
+local.settings.json
+*connection_string*
+*connectionstring*
+*.key
+*.pem
+*.pfx
+*.p12
+
+# Azure state files
+azure-pause-state.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Logs and dumps
+*.dmp
+*.log
+*.tmp
+
+# Editor
+.vscode/
+.idea/
+*.suo

@@ -1,0 +1,26 @@
+// Golden Ticket - TGS Without Prior TGT (Pass-The-Ticket)
+// Detects TGS requests (4769) with no preceding TGT request (4768) from
+// the same source — indicates a pre-forged ticket was injected into memory.
+let lookback = 1h;
+let tgt_requestors =
+    SecurityEvent
+    | where TimeGenerated > ago(lookback)
+    | where EventID == 4768
+    | extend ClientAddress = tostring(extract(@"Client Address:\s+(\S+)", 1, EventData))
+    | extend AccountName   = tostring(extract(@"Account Name:\s+(\S+)",   1, EventData))
+    | project TGT_Time = TimeGenerated, AccountName, ClientAddress;
+
+SecurityEvent
+| where TimeGenerated > ago(lookback)
+| where EventID == 4769
+| extend AccountName   = tostring(extract(@"Account Name:\s+(\S+)",   1, EventData))
+| extend ClientAddress = tostring(extract(@"Client Address:\s+(\S+)", 1, EventData))
+| extend ServiceName   = tostring(extract(@"Service Name:\s+(\S+)",   1, EventData))
+| where ServiceName !endswith "$"
+| join kind=leftanti tgt_requestors on AccountName, ClientAddress
+| summarize
+    TGSCount  = count(),
+    Services  = make_set(ServiceName)
+  by AccountName, ClientAddress, bin(TimeGenerated, 10m)
+| where TGSCount >= 1
+| extend Severity = "High", RuleName = "GT-PTT-NoTGT"
