@@ -1,23 +1,24 @@
 // Volatility Memory Analysis - HIGH/CRITICAL Risk Indicator
-// Fires when the Volatility pipeline posts a HIGH or CRITICAL
-// risk score back to Log Analytics after analysing an LSASS dump.
-// This is the memory-forensics enrichment layer — confirms in-memory
-// Golden Ticket artifacts that event logs alone cannot detect.
+// Fires when the memory-forensics pipeline posts a HIGH/CRITICAL risk score
+// back to Log Analytics after analysing an LSASS dump with pypykatz.
+// Memory-based Golden Ticket detection: a forged TGT (service=krbtgt) for a
+// privileged USER account found resident in the DC's LSASS memory.
+// Deployed as analytics rule "volatility-high-risk-memory" at PT5M.
 VolatilityAnalysis_CL
-| where TimeGenerated > ago(24h)
+| where TimeGenerated > ago(5m)
 | where riskLevel_s in ("HIGH", "CRITICAL")
-| extend BlobName      = blobName_s
-| extend Indicator     = indicator_s
-| extend EncType       = encryptionType_s
-| extend PluginHits    = pluginResults_s
-| extend AnalysisTime  = analysisTime_d
+| extend Detail        = tostring(parse_json(kerberosAnalysis_indicators_s)[0].description)
+| extend TargetAccount = tostring(extract(@"account\(s\) \[([^\]]+)\]", 1, Detail))
+| extend TicketsFound  = toint(kerberosAnalysis_totalTickets_d)
+| extend GoldenTickets = toint(kerberosAnalysis_longLivedCount_d)
 | project
     TimeGenerated,
-    BlobName,
-    Indicator,
-    EncType,
-    PluginHits,
-    AnalysisTime,
-    RiskLevel = riskLevel_s
+    BlobName      = blobName_s,
+    RiskLevel     = riskLevel_s,
+    Indicator     = indicator_s,
+    TargetAccount,
+    TicketsFound,
+    GoldenTickets,
+    Detail
 | extend Severity = iff(RiskLevel == "CRITICAL", "Critical", "High")
 | extend RuleName = "Volatility-MemoryHit"

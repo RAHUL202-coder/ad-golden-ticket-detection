@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AD Attack Detection Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;600&display=swap');
+
+  :root {
+    --bg-deep:    #06080f;
+    --bg-panel:   #0c1020;
+    --bg-card:    #111827;
+    --border:     #1e2d4a;
+    --border-glow:#2a4a8a;
+    --text-main:  #c8d8f0;
+    --text-dim:   #5a7096;
+    --text-bright:#e8f0ff;
+    --azure:      #0ea5e9;
+    --azure-dim:  #0c4a6e;
+    --azure-glow: rgba(14,165,233,0.18);
+    --onprem:     #f97316;
+    --onprem-dim: #431407;
+    --onprem-glow:rgba(249,115,22,0.18);
+    --detect:     #22c55e;
+    --detect-dim: #052e16;
+    --detect-glow:rgba(34,197,94,0.18);
+    --accent:     #a78bfa;
+    --accent-dim: #2e1065;
+    --yellow:     #fbbf24;
+    --red:        #ef4444;
+    --font-head:  'Rajdhani', sans-serif;
+    --font-mono:  'Share Tech Mono', monospace;
+    --font-body:  'Exo 2', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-deep);
+    color: var(--text-main);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    padding: 24px;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% 10%, rgba(14,165,233,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 90%, rgba(167,139,250,0.05) 0%, transparent 60%),
+      linear-gradient(180deg, #06080f 0%, #080d1a 100%);
+  }
+
+  /* ── Title ── */
+  .title-block {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .title-block h1 {
+    font-family: var(--font-head);
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text-bright);
+    text-transform: uppercase;
+  }
+  .title-block .subtitle {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .title-line {
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--azure), transparent);
+    margin: 10px auto 0;
+  }
+
+  /* ── Main grid ── */
+  .diagram {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* ── Zone panels ── */
+  .zone {
+    border-radius: 10px;
+    padding: 16px;
+    position: relative;
+    border: 1px solid;
+  }
+  .zone-onprem {
+    border-color: var(--onprem);
+    background: linear-gradient(135deg, rgba(249,115,22,0.06) 0%, rgba(249,115,22,0.02) 100%);
+    grid-row: 1 / 3;
+    box-shadow: 0 0 30px rgba(249,115,22,0.1), inset 0 0 30px rgba(249,115,22,0.03);
+  }
+  .zone-azure {
+    border-color: var(--azure);
+    background: linear-gradient(135deg, rgba(14,165,233,0.06) 0%, rgba(14,165,233,0.02) 100%);
+    box-shadow: 0 0 30px rgba(14,165,233,0.1), inset 0 0 30px rgba(14,165,233,0.03);
+  }
+  .zone-detect {
+    border-color: var(--detect);
+    background: linear-gradient(135deg, rgba(34,197,94,0.06) 0%, rgba(34,197,94,0.02) 100%);
+    box-shadow: 0 0 30px rgba(34,197,94,0.1), inset 0 0 30px rgba(34,197,94,0.03);
+  }
+
+  .zone-label {
+    font-family: var(--font-head);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-bottom: 14px;
+  }
+  .zone-onprem .zone-label  { background: rgba(249,115,22,0.15); color: var(--onprem); border: 1px solid rgba(249,115,22,0.3); }
+  .zone-azure  .zone-label  { background: rgba(14,165,233,0.15);  color: var(--azure);  border: 1px solid rgba(14,165,233,0.3);  }
+  .zone-detect .zone-label  { background: rgba(34,197,94,0.15);   color: var(--detect); border: 1px solid rgba(34,197,94,0.3);   }
+
+  /* ── Component cards ── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .card:last-child { margin-bottom: 0; }
+  .card-title {
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .card-sub {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .card-sub span { display: block; }
+
+  /* color accent left border */
+  .card-attack  { border-left: 3px solid var(--red); }
+  .card-dc      { border-left: 3px solid var(--onprem); }
+  .card-ama     { border-left: 3px solid var(--yellow); }
+  .card-script  { border-left: 3px solid #94a3b8; }
+  .card-la      { border-left: 3px solid var(--azure); }
+  .card-sentinel{ border-left: 3px solid var(--accent); }
+  .card-storage { border-left: 3px solid #38bdf8; }
+  .card-sb      { border-left: 3px solid #fb923c; }
+  .card-func    { border-left: 3px solid #34d399; }
+  .card-vm      { border-left: 3px solid #a3e635; }
+  .card-logic   { border-left: 3px solid var(--detect); }
+  .card-auto    { border-left: 3px solid var(--accent); }
+
+  /* icon badge */
+  .icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .ic-red    { background: rgba(239,68,68,0.2);  color: var(--red); }
+  .ic-orange { background: rgba(249,115,22,0.2); color: var(--onprem); }
+  .ic-yellow { background: rgba(251,191,36,0.2); color: var(--yellow); }
+  .ic-blue   { background: rgba(14,165,233,0.2); color: var(--azure); }
+  .ic-purple { background: rgba(167,139,250,0.2);color: var(--accent); }
+  .ic-green  { background: rgba(34,197,94,0.2);  color: var(--detect); }
+  .ic-lime   { background: rgba(163,230,53,0.2); color: #a3e635; }
+  .ic-sky    { background: rgba(56,189,248,0.2); color: #38bdf8; }
+  .ic-teal   { background: rgba(52,211,153,0.2); color: #34d399; }
+  .ic-gray   { background: rgba(148,163,184,0.2);color: #94a3b8; }
+
+  /* tag chips */
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .tag-orange{ border-color:rgba(249,115,22,0.4); color:var(--onprem); background:rgba(249,115,22,0.08); }
+  .tag-blue  { border-color:rgba(14,165,233,0.4);  color:var(--azure);  background:rgba(14,165,233,0.08); }
+  .tag-purple{ border-color:rgba(167,139,250,0.4); color:var(--accent); background:rgba(167,139,250,0.08);}
+  .tag-green { border-color:rgba(34,197,94,0.4);   color:var(--detect); background:rgba(34,197,94,0.08);  }
+  .tag-red   { border-color:rgba(239,68,68,0.4);   color:var(--red);    background:rgba(239,68,68,0.08);  }
+  .tag-yellow{ border-color:rgba(251,191,36,0.4);  color:var(--yellow); background:rgba(251,191,36,0.08); }
+  .tag-gray  { border-color:rgba(148,163,184,0.3); color:#94a3b8;       background:rgba(148,163,184,0.06);}
+  .tag-teal  { border-color:rgba(52,211,153,0.4);  color:#34d399;       background:rgba(52,211,153,0.08); }
+
+  /* ── Sentinel rules grid ── */
+  .rules-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .rule-row {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+  }
+  .rule-name { color: var(--text-main); display: block; }
+  .rule-freq { color: var(--text-dim); display: block; margin-top: 2px; }
+  .rule-freq.fast { color: var(--detect); }
+  .rule-freq.med  { color: var(--yellow); }
+
+  /* ── Data flow arrows ── */
+  .flow-section {
+    margin-top: 16px;
+    grid-column: 1 / 3;
+  }
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .flow-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px 12px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .flow-num {
+    font-family: var(--font-head);
+    font-weight: 700;
+    font-size: 20px;
+    line-height: 1;
+    color: var(--azure);
+    flex-shrink: 0;
+    text-shadow: 0 0 12px rgba(14,165,233,0.5);
+  }
+  .flow-desc {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-main);
+  }
+  .flow-detail {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: var(--text-dim);
+    margin-top: 3px;
+    display: block;
+  }
+  .flow-arrow {
+    color: var(--azure);
+    opacity: 0.6;
+    margin: 0 2px;
+  }
+
+  /* ── MITRE coverage ── */
+  .mitre-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .mitre-tag {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: rgba(167,139,250,0.12);
+    border: 1px solid rgba(167,139,250,0.35);
+    color: var(--accent);
+  }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--font-body);
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  /* Dividers */
+  hr.zone-sep {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 10px 0;
+  }
+
+  /* Sub-section inside azure zone */
+  .azure-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .azure-col-left, .azure-col-right { display: flex; flex-direction: column; gap: 10px; }
+
+  .section-heading {
+    font-family: var(--font-head);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    margin-top: 2px;
+  }
+
+  .result-badge {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(34,197,94,0.15);
+    border: 1px solid rgba(34,197,94,0.4);
+    color: var(--detect);
+    margin-left: 6px;
+  }
+
+  .timing-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 10px;
+  }
+  .timing-table td {
+    padding: 3px 6px;
+    border-bottom: 1px solid rgba(30,45,74,0.5);
+    font-family: var(--font-mono);
+  }
+  .timing-table td:first-child { color: var(--text-dim); }
+  .timing-table td:last-child  { color: var(--detect); text-align: right; }
+  .timing-table tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<div class="title-block">
+  <h1>Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse</h1>
+  <div class="subtitle">MTech Capstone — Information Security &nbsp;|&nbsp; Detection Pipeline Architecture &nbsp;|&nbsp; corp.local / Azure Sentinel</div>
+  <div class="title-line"></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--onprem)"></div> On-Premises Attack Zone</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--azure)"></div> Azure Cloud (Log Analytics + Sentinel)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--detect)"></div> Detection &amp; Response</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Automation Rules</div>
+</div>
+
+<div class="diagram">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       LEFT COLUMN — ON-PREMISES
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="zone zone-onprem">
+    <div class="zone-label">🖥 On-Premises — corp.local</div>
+
+    <!-- DC -->
+    <div class="card card-dc">
+      <div class="card-title">
+        <span class="icon ic-orange">⬡</span>
+        <span style="color:var(--onprem)">WIN-09GD99A8DPG</span>
+      </div>
+      <div class="card-sub">
+        <span>Domain Controller — Windows Server 2022</span>
+        <span style="color:var(--text-dim)">corp.local &nbsp;|&nbsp; 192.168.189.166</span>
+        <span style="color:var(--text-dim)">SID: S-1-5-21-3406634861-…-3516503270</span>
+      </div>
+    </div>
+
+    <!-- Attack tools -->
+    <div class="card card-attack">
+      <div class="card-title">
+        <span class="icon ic-red">⚡</span>
+        <span style="color:var(--red)">Attack Simulation</span>
+      </div>
+      <div class="card-sub">
+        <span>Mimikatz v2.2.0 — DCSync (lsadump::dcsync)</span>
+        <span>kerberos::golden → forged TGT (RC4/AES)</span>
+        <span>kerberos::ptt — Pass-The-Ticket injection</span>
+        <span>klist get — force TGS request (EventID 4769)</span>
+      </div>
+      <div class="tags">
+        <span class="tag tag-red">T1558 – Golden Ticket</span>
+        <span class="tag tag-red">T1003 – DCSync</span>
+        <span class="tag tag-red">T1134 – SIDHistory</span>
+        <span class="tag tag-red">T1550 – PTT</span>
+      </div>
+    </div>
+
+    <!-- AMA + DCR -->
+    <div class="card card-ama">
+      <div class="card-title">
+        <span class="icon ic-yellow">◈</span>
+        <span style="color:var(--yellow)">AMA v1.42.0.0 + DCR</span>
+      </div>
+      <div class="card-sub">
+        <span>Azure Monitor Agent (Arc-managed)</span>
+        <span>DCR: DCR-Security-Kerberos</span>
+        <span>XPath: Security — EventID 4768, 4769, 4672,</span>
+        <span style="padding-left:12px">4624, 4625, 5136</span>
+        <span style="color:var(--detect)">→ HybridDetectionWS &nbsp;(~1 min lag)</span>
+      </div>
+    </div>
+
+    <hr class="zone-sep">
+    <div class="section-heading">Scheduled Scripts</div>
+
+    <!-- LSASS Capture -->
+    <div class="card card-script">
+      <div class="card-title">
+        <span class="icon ic-gray">📄</span>
+        <span>Capture-LSASS.ps1</span>
+      </div>
+      <div class="card-sub">
+        <span>Triggered: Schedule (4h) + Logic App Arc Run Command</span>
+        <span>--max-connections 4 &nbsp;|&nbsp; Upload → memorydumps/artifacts/</span>
+        <span>Blob → LsassDumpTrigger → memory-dump-queue</span>
+      </div>
+    </div>
+
+    <!-- SIDHistory Inventory -->
+    <div class="card card-script">
+      <div class="card-title">
+        <span class="icon ic-gray">📄</span>
+        <span>SIDHistory-Inventory.ps1</span>
+      </div>
+      <div class="card-sub">
+        <span>Schedule: every 1h &nbsp;|&nbsp; Scans all AD objects</span>
+        <span>HTTP Data Collector API → SIDHistoryInventory_CL</span>
+        <span style="color:var(--yellow)">mimikatz sid::patch blocked on WS2022 → inventory-based detection</span>
+      </div>
+    </div>
+
+    <hr class="zone-sep">
+    <div class="section-heading">Lab Constraints Documented</div>
+    <div style="font-family:var(--font-mono); font-size:9px; color:var(--text-dim); line-height:1.7">
+      • RC4 TGS override → AES-256 in single-DC environment<br>
+      • TGS ServiceName = machine acct$ (loopback KDC path)<br>
+      • sid::patch incompatible with WS2022 NTDS offsets<br>
+      • EventID 4765/4766 empty → inventory detection used
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       RIGHT TOP — AZURE CLOUD
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="zone zone-azure">
+    <div class="zone-label">☁ Azure Cloud — HybridDetectionRG</div>
+
+    <div class="azure-grid">
+      <div class="azure-col-left">
+
+        <!-- Log Analytics -->
+        <div>
+          <div class="section-heading">Log Analytics — HybridDetectionWS</div>
+          <div class="card card-la">
+            <div class="card-title">
+              <span class="icon ic-blue">⊞</span>
+              <span style="color:var(--azure)">SecurityEvent</span>
+            </div>
+            <div class="card-sub">
+              <span>EventID 4768 — TGT Request</span>
+              <span>EventID 4769 — TGS Request</span>
+              <span>EventID 4672 — Privileged Logon</span>
+              <span>EventID 4624 — Successful Logon</span>
+              <span>EventID 5136 — Directory Modified</span>
+            </div>
+          </div>
+          <div class="card card-la" style="margin-top:6px">
+            <div class="card-title">
+              <span class="icon ic-blue">⊞</span>
+              <span style="color:var(--azure)">SIDHistoryInventory_CL</span>
+            </div>
+            <div class="card-sub">
+              <span>Columns: ObjectName_s, RiskLevel_s</span>
+              <span>SIDHistoryEntry_s, Domain_s</span>
+              <span style="color:var(--yellow)">HTTP Data Collector API → _s suffix auto-appended</span>
+            </div>
+          </div>
+          <div class="card card-la" style="margin-top:6px">
+            <div class="card-title">
+              <span class="icon ic-blue">⊞</span>
+              <span style="color:var(--azure)">VolatilityAnalysis_CL</span>
+            </div>
+            <div class="card-sub">
+              <span>LSASS memory analysis results</span>
+              <span>mimikatz artifacts, Kerberos ticket structs</span>
+              <span>69+ rows ingested</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Storage -->
+        <div>
+          <div class="section-heading">Storage Accounts</div>
+          <div class="card card-storage">
+            <div class="card-title">
+              <span class="icon ic-sky">🗄</span>
+              <span style="color:#38bdf8">memorydumps202606122126</span>
+            </div>
+            <div class="card-sub">
+              <span>Container: artifacts (LSASS dumps)</span>
+              <span>Container: kerberos-logs</span>
+            </div>
+          </div>
+          <div class="card card-storage" style="margin-top:6px">
+            <div class="card-title">
+              <span class="icon ic-sky">🗄</span>
+              <span style="color:#38bdf8">sidhistory202606122126</span>
+            </div>
+            <div class="card-sub">
+              <span>Container: sidhistory-logs</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="azure-col-right">
+
+        <!-- Sentinel -->
+        <div>
+          <div class="section-heading">Microsoft Sentinel — 11 KQL Analytics Rules</div>
+          <div class="card card-sentinel">
+            <div class="card-title">
+              <span class="icon ic-purple">⬟</span>
+              <span style="color:var(--accent)">Golden Ticket Rules (7)</span>
+            </div>
+            <div class="rules-grid">
+              <div class="rule-row">
+                <span class="rule-name">gt-ptt-detection</span>
+                <span class="rule-freq fast">PT5M ⚡</span>
+              </div>
+              <div class="rule-row">
+                <span class="rule-name">gt-rc4-downgrade</span>
+                <span class="rule-freq fast">PT5M ⚡</span>
+              </div>
+              <div class="rule-row">
+                <span class="rule-name">gt-service-enum</span>
+                <span class="rule-freq fast">PT5M ⚡</span>
+              </div>
+              <div class="rule-row">
+                <span class="rule-name">gt-aes-golden-ticket</span>
+                <span class="rule-freq med">PT1H</span>
+              </div>
+              <div class="rule-row">
+                <span class="rule-name">gt-skeleton-key</span>
+                <span class="rule-freq med">PT1H</span>
+              </div>
+              <div class="rule-row">
+                <span class="rule-name">gt-pass-the-hash</span>
+                <span class="rule-freq med">PT30M</span>
+              </div>
+              <div class="rule-row" style="grid-column:1/3">
+                <span class="rule-name">gt-indirect-indicators</span>
+                <span class="rule-freq">PT2H</span>
+              </div>
+            </div>
+          </div>
+          <div class="card card-sentinel" style="margin-top:6px">
+            <div class="card-title">
+              <span class="icon ic-purple">⬟</span>
+              <span style="color:var(--accent)">SIDHistory Rules (3)</span>
+            </div>
+            <div class="rules-grid">
+              <div class="rule-row">
+                <span class="rule-name">sidhistory-high-risk-sid</span>
+                <span class="rule-freq fast">PT5M ⚡</span>
+              </div>
+              <div class="rule-row">
+                <span class="rule-name">sidhistory-delta-detection</span>
+                <span class="rule-freq fast">PT5M ⚡</span>
+              </div>
+              <div class="rule-row" style="grid-column:1/3">
+                <span class="rule-name">sidhistory-privileged-logon-correlation</span>
+                <span class="rule-freq fast">PT5M ⚡</span>
+              </div>
+            </div>
+          </div>
+          <div class="card card-sentinel" style="margin-top:6px">
+            <div class="card-title">
+              <span class="icon ic-purple">⬟</span>
+              <span style="color:var(--accent)">Memory Rule (1)</span>
+            </div>
+            <div class="rule-row">
+              <span class="rule-name">volatility-high-risk-memory</span>
+              <span class="rule-freq med">PT30M</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Service Bus + Function -->
+        <div>
+          <div class="section-heading">Processing Pipeline</div>
+          <div class="card card-sb">
+            <div class="card-title">
+              <span class="icon ic-orange">⇄</span>
+              <span style="color:#fb923c">HybridDetSB-8e710d8c</span>
+            </div>
+            <div class="card-sub">
+              <span>Queue: memory-dump-queue</span>
+              <span>Queue: analysis-queue</span>
+            </div>
+          </div>
+          <div class="card card-func" style="margin-top:6px">
+            <div class="card-title">
+              <span class="icon ic-teal">λ</span>
+              <span style="color:#34d399">GoldenTicketProcessor2</span>
+            </div>
+            <div class="card-sub">
+              <span>Python 3.11 — Azure Functions v4</span>
+              <span>LsassDumpTrigger (blob) → memory-dump-queue</span>
+              <span>AnalysisResultProcessor → VolatilityAnalysis_CL</span>
+            </div>
+          </div>
+          <div class="card card-vm" style="margin-top:6px">
+            <div class="card-title">
+              <span class="icon ic-lime">⬡</span>
+              <span style="color:#a3e635">VolatilityAnalysisVM</span>
+            </div>
+            <div class="card-sub">
+              <span>Ubuntu 22.04 — westus2 (Standard_D2s_v3)</span>
+              <span>volatility-worker.service (systemd, always)</span>
+              <span>Volatility 3 + Windows symbols</span>
+              <span>Polls analysis-queue → downloads dump → analyze</span>
+              <span style="color:#a3e635">Extracts: mimikatz artefacts, Kerberos TGT structs</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       RIGHT BOTTOM — DETECTION & RESPONSE
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="zone zone-detect">
+    <div class="zone-label">🛡 Detection &amp; Response Automation</div>
+
+    <div class="azure-grid">
+      <div class="azure-col-left">
+
+        <div class="card card-logic">
+          <div class="card-title">
+            <span class="icon ic-green">⚙</span>
+            <span style="color:var(--detect)">SentinelResponsePlaybook</span>
+          </div>
+          <div class="card-sub">
+            <span>Trigger: ApiConnectionWebhook (Sentinel incident)</span>
+            <span>Auth: ManagedServiceIdentity</span>
+          </div>
+          <div class="tags" style="margin-top:6px">
+            <span class="tag tag-green">Action 1: Email Alert → pprahul2000@outlook.com</span>
+          </div>
+          <div class="tags">
+            <span class="tag tag-green">Action 2: Arc Run Command → Capture-LSASS.ps1</span>
+          </div>
+        </div>
+
+        <div class="card card-auto">
+          <div class="card-title">
+            <span class="icon ic-purple">⚙</span>
+            <span style="color:var(--accent)">Automation Rules</span>
+          </div>
+          <div class="card-sub">
+            <span>auto-triage-golden-ticket (order 1)</span>
+            <span style="padding-left:10px; color:var(--text-dim)">→ label: GoldenTicket + RunPlaybook</span>
+            <span>auto-triage-sidhistory (order 2)</span>
+            <span style="padding-left:10px; color:var(--text-dim)">→ label: SIDHistory + RunPlaybook</span>
+          </div>
+        </div>
+
+      </div>
+      <div class="azure-col-right">
+
+        <div>
+          <div class="section-heading">Empirical Results — 2026-06-08 Simulation</div>
+          <table class="timing-table">
+            <tr><td>GT attack executed</td><td>10:21:29 IST</td></tr>
+            <tr><td>First incident fired</td><td style="color:var(--detect)">10:23:28 IST (2 min) ✓</td></tr>
+            <tr><td>Rule fired</td><td>gt-ptt-detection</td></tr>
+            <tr><td>TGSCount / TGTCount</td><td>10 / 0 (Ratio: 999)</td></tr>
+            <tr><td>LSASS capture triggered</td><td>3.1 min (3 dumps)</td></tr>
+            <tr><td>Detection before improvement</td><td style="color:var(--red)">~45 min avg</td></tr>
+            <tr><td>Detection after improvement</td><td style="color:var(--detect)">2 min measured</td></tr>
+          </table>
+        </div>
+
+        <div style="margin-top:10px">
+          <div class="section-heading">MITRE ATT&amp;CK Coverage</div>
+          <div class="mitre-grid">
+            <span class="mitre-tag">T1558 – Forge Kerberos</span>
+            <span class="mitre-tag">T1550 – PTT/PTH</span>
+            <span class="mitre-tag">T1134 – SIDHistory</span>
+            <span class="mitre-tag">T1003 – Credential Dump</span>
+            <span class="mitre-tag">T1556 – Skeleton Key</span>
+            <span class="mitre-tag">T1046 – Net Discovery</span>
+            <span class="mitre-tag">T1069 – Group Discovery</span>
+            <span class="mitre-tag">T1078 – Valid Accounts</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       BOTTOM — DATA FLOWS
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="flow-section">
+    <div class="zone-label" style="background:rgba(14,165,233,0.1); color:var(--azure); border:1px solid rgba(14,165,233,0.3); border-radius:3px; margin-bottom:12px">⇢ Data Flows</div>
+    <div class="flow-grid">
+
+      <div class="flow-item">
+        <div class="flow-num">①</div>
+        <div>
+          <div class="flow-desc">DC <span class="flow-arrow">→</span> AMA/DCR <span class="flow-arrow">→</span> Log Analytics</div>
+          <span class="flow-detail">Kerberos events (4768, 4769) via DCR-Security-Kerberos</span>
+          <span class="flow-detail" style="color:var(--detect)">~1 min ingestion lag</span>
+        </div>
+      </div>
+
+      <div class="flow-item">
+        <div class="flow-num">②</div>
+        <div>
+          <div class="flow-desc">LSASS dump <span class="flow-arrow">→</span> Storage <span class="flow-arrow">→</span> Service Bus</div>
+          <span class="flow-detail">memorydumps/artifacts/ → LsassDumpTrigger (blob)</span>
+          <span class="flow-detail">→ memory-dump-queue → analysis-queue</span>
+        </div>
+      </div>
+
+      <div class="flow-item">
+        <div class="flow-num">③</div>
+        <div>
+          <div class="flow-desc">SIDHistory-Inventory.ps1 <span class="flow-arrow">→</span> Sentinel</div>
+          <span class="flow-detail">HTTP Data Collector API → SIDHistoryInventory_CL</span>
+          <span class="flow-detail">Inventory-based: resilient vs audit log evasion</span>
+        </div>
+      </div>
+
+      <div class="flow-item">
+        <div class="flow-num">④</div>
+        <div>
+          <div class="flow-desc">Volatility VM <span class="flow-arrow">→</span> VolatilityAnalysis_CL</div>
+          <span class="flow-detail">Polls analysis-queue via MSI token</span>
+          <span class="flow-detail">volatility-worker.service → windows.hashdump, kerberos plugins</span>
+        </div>
+      </div>
+
+      <div class="flow-item">
+        <div class="flow-num">⑤</div>
+        <div>
+          <div class="flow-desc">Sentinel KQL rules <span class="flow-arrow">→</span> Incident created</div>
+          <span class="flow-detail">6 rules at PT5M frequency (down from PT2H default)</span>
+          <span class="flow-detail" style="color:var(--detect)">Detection: 2 min measured (target: 8-12 min)</span>
+        </div>
+      </div>
+
+      <div class="flow-item">
+        <div class="flow-num">⑥</div>
+        <div>
+          <div class="flow-desc">Incident <span class="flow-arrow">→</span> Automation Rule <span class="flow-arrow">→</span> Logic App</div>
+          <span class="flow-detail">Condition: IncidentRelatedAnalyticRuleIds contains GT rule</span>
+          <span class="flow-detail">RunPlaybook: SentinelResponsePlaybook</span>
+        </div>
+      </div>
+
+      <div class="flow-item">
+        <div class="flow-num">⑦</div>
+        <div>
+          <div class="flow-desc">Logic App <span class="flow-arrow">→</span> Email + LSASS Trigger</div>
+          <span class="flow-detail">Alert: pprahul2000@outlook.com</span>
+          <span class="flow-detail">Arc Run Command: Capture-LSASS.ps1 on WIN-09GD99A8DPG</span>
+        </div>
+      </div>
+
+      <div class="flow-item">
+        <div class="flow-num" style="color:var(--detect)">⑧</div>
+        <div>
+          <div class="flow-desc" style="color:var(--detect)">Forensic Evidence Chain</div>
+          <span class="flow-detail">LSASS dump (128-130 MB) → Volatility 3 analysis</span>
+          <span class="flow-detail">Chain of custody: dump hash → storage → analysis result</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div style="text-align:center; margin-top:20px; font-family:var(--font-mono); font-size:9px; color:var(--text-dim); letter-spacing:2px">
+  SUBSCRIPTION: 8e710d8c-465e-4d5f-92ac-800e9c7abe1a &nbsp;|&nbsp;
+  WORKSPACE: 44739274-3306-42bc-abd8-e225a057a325 &nbsp;|&nbsp;
+  SIMULATION DATE: 2026-06-08 &nbsp;|&nbsp;
+  DETECTION TIME: 2 MIN &nbsp;|&nbsp;
+  RULES: 11 / 11 ENABLED
+</div>
+
+</body>
+</html>

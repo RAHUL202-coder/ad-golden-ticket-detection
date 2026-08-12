@@ -29,6 +29,7 @@ if ($UploadToBlob) {
             --name $blobName `
             --file $dumpPath `
             --auth-mode login `
+            --max-connections 4 `
             --overwrite
         Write-Host "Uploaded: $blobName"
         Remove-Item $dumpPath -Force

@@ -1,6 +1,6 @@
 # ============================================================
 # End-AttackSim.ps1
-# Post-attack evidence capture — run AFTER attack simulation,
+# Post-attack evidence capture -- run AFTER attack simulation,
 # BEFORE reverting VMware snapshot.
 # Saves all evidence to file so it persists after revert.
 # ============================================================
@@ -21,7 +21,7 @@ $token    = (az account get-access-token --query accessToken -o tsv 2>$null)
 
 if (-not (Test-Path $simDir)) { New-Item -ItemType Directory -Path $simDir -Force | Out-Null }
 
-# ── POST-REVERT MODE ─────────────────────────────────────────
+# -- POST-REVERT MODE -----------------------------------------
 if ($PostRevert) {
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
@@ -65,13 +65,13 @@ if ($PostRevert) {
     exit 0
 }
 
-# ── EVIDENCE CAPTURE MODE ────────────────────────────────────
+# -- EVIDENCE CAPTURE MODE ------------------------------------
 $timestamp  = Get-Date -Format "yyyyMMdd-HHmmss"
 $reportFile = "$simDir\evidence-$timestamp.txt"
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  END-ATTACKSIM — Evidence Capture" -ForegroundColor Cyan
+Write-Host "  END-ATTACKSIM -- Evidence Capture" -ForegroundColor Cyan
 Write-Host "  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')   Lookback: $LookbackHours hour(s)" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
@@ -82,10 +82,10 @@ $report += "Generated : $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
 $report += "Lookback  : $LookbackHours hour(s)"
 $report += "=" * 60
 
-# ── Step 1: Service Bus Queue ─────────────────────────────────
+# -- Step 1: Service Bus Queue --------------------------------
 Write-Host "[1/5] Checking Service Bus queue (pipeline activity)..." -ForegroundColor Yellow
 
-$queueUrl  = "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.ServiceBus/namespaces/$SB_NS/queues/$QUEUE`?api-version=2021-11-01"
+$queueUrl  = "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.ServiceBus/namespaces/$SB_NS/queues/" + $QUEUE + "?api-version=2021-11-01"
 $queueData = Invoke-RestMethod -Method Get -Uri $queueUrl -Headers @{"Authorization"="Bearer $token"} -ErrorAction SilentlyContinue
 $msgCount  = $queueData.properties.countDetails.activeMessageCount
 $dlqCount  = $queueData.properties.countDetails.deadLetterMessageCount
@@ -96,18 +96,18 @@ $report += "SERVICE BUS QUEUE"
 $report += "  memory-dump-queue active  : $msgCount"
 $report += "  memory-dump-queue DLQ     : $dlqCount"
 if ($msgCount -gt 0) {
-    Write-Host "  Pipeline fired — $msgCount message(s) queued for Volatility analysis." -ForegroundColor Green
+    Write-Host "  Pipeline fired -- $msgCount message(s) queued for Volatility analysis." -ForegroundColor Green
     $report += "  STATUS: PIPELINE FIRED"
 } else {
     Write-Host "  No messages in queue. Either processed already or LSASS capture not triggered." -ForegroundColor DarkGray
     $report += "  STATUS: QUEUE EMPTY (check Function App logs)"
 }
 
-# ── Step 2: Kerberos Event Counts ────────────────────────────
+# -- Step 2: Kerberos Event Counts ----------------------------
 Write-Host ""
 Write-Host "[2/5] Querying Kerberos events from Log Analytics (last $LookbackHours h)..." -ForegroundColor Yellow
 
-$kerbQuery = "SecurityEvent | where TimeGenerated > ago($($LookbackHours)h) | where EventID in (4768, 4769, 4672, 4624, 4625, 5136) | summarize EventCount=count() by EventID | order by EventID asc"
+$kerbQuery = "SecurityEvent | where TimeGenerated > ago(" + $LookbackHours + "h) | where EventID in (4768, 4769, 4672, 4624, 4625, 5136) | summarize EventCount=count() by EventID | order by EventID asc"
 $kerbResult = az monitor log-analytics query `
     -w $WS_ID `
     --analytics-query $kerbQuery `
@@ -128,7 +128,7 @@ if ($kerbResult) {
     $report += "  (No results)"
 }
 
-# ── Step 3: Sentinel Incidents ───────────────────────────────
+# -- Step 3: Sentinel Incidents -------------------------------
 Write-Host ""
 Write-Host "[3/5] Querying Sentinel incidents (last $LookbackHours h)..." -ForegroundColor Yellow
 
@@ -155,15 +155,15 @@ if ($incidents -and $incidents.Count -gt 0) {
     }
 } else {
     Write-Host "  No new incidents in the last $LookbackHours hour(s)." -ForegroundColor DarkGray
-    Write-Host "  (Rules run on schedule — check again in 30-60 min if attack was recent)" -ForegroundColor DarkGray
-    $report += "  No incidents yet (rules may not have fired — check again in 30-60 min)"
+    Write-Host "  (Rules run on schedule -- check again in 30-60 min if attack was recent)" -ForegroundColor DarkGray
+    $report += "  No incidents yet (rules may not have fired -- check again in 30-60 min)"
 }
 
-# ── Step 4: Function App — Recent Invocations ────────────────
+# -- Step 4: Function App -- Recent Invocations ---------------
 Write-Host ""
 Write-Host "[4/5] Checking Function App recent activity..." -ForegroundColor Yellow
 
-$funcLogsQuery = "FunctionAppLogs | where TimeGenerated > ago($($LookbackHours)h) | where Message contains 'LSASS' or Message contains 'Queued' or Message contains 'Analysis' | project TimeGenerated, FunctionName, Level, Message | order by TimeGenerated desc | take 10"
+$funcLogsQuery = "FunctionAppLogs | where TimeGenerated > ago(" + $LookbackHours + "h) | where Message contains 'LSASS' or Message contains 'Queued' or Message contains 'Analysis' | project TimeGenerated, FunctionName, Level, Message | order by TimeGenerated desc | take 10"
 $funcLogs = az monitor log-analytics query `
     -w $WS_ID `
     --analytics-query $funcLogsQuery `
@@ -182,11 +182,11 @@ if ($funcLogs) {
     $report += "  (No logs or query unavailable)"
 }
 
-# ── Step 5: Volatility Analysis Results ──────────────────────
+# -- Step 5: Volatility Analysis Results ----------------------
 Write-Host ""
 Write-Host "[5/5] Checking for Volatility analysis results in Log Analytics..." -ForegroundColor Yellow
 
-$volQuery   = "VolatilityAnalysis_CL | where TimeGenerated > ago($($LookbackHours)h) | project TimeGenerated, blobName_s, riskLevel_s, indicator_s | order by TimeGenerated desc | take 10"
+$volQuery   = "VolatilityAnalysis_CL | where TimeGenerated > ago(" + $LookbackHours + "h) | project TimeGenerated, blobName_s, riskLevel_s, indicator_s | order by TimeGenerated desc | take 10"
 $volResults = az monitor log-analytics query `
     -w $WS_ID `
     --analytics-query $volQuery `
@@ -202,11 +202,11 @@ if ($volResults) {
         $report += $line
     }
 } else {
-    Write-Host "  No Volatility results yet (worker is placeholder — actual analysis not yet wired up)." -ForegroundColor DarkGray
-    $report += "  (Volatility worker is placeholder — no actual memory analysis output)"
+    Write-Host "  No Volatility results yet (worker is placeholder -- actual analysis not yet wired up)." -ForegroundColor DarkGray
+    $report += "  (Volatility worker is placeholder -- no actual memory analysis output)"
 }
 
-# ── Save Report ───────────────────────────────────────────────
+# -- Save Report ----------------------------------------------
 $report += ""
 $report += "=" * 60
 $report += "Report saved: $reportFile"
@@ -215,10 +215,10 @@ $report | Out-File $reportFile -Encoding utf8
 Write-Host ""
 Write-Host "  Evidence report saved: $reportFile" -ForegroundColor Green
 
-# ── Final Instructions ────────────────────────────────────────
+# -- Final Instructions ---------------------------------------
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Yellow
-Write-Host "  EVIDENCE CAPTURED — DO THIS NOW:" -ForegroundColor Yellow
+Write-Host "  EVIDENCE CAPTURED -- DO THIS NOW:" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "  1. Screenshot Sentinel Incidents in Azure Portal" -ForegroundColor White
@@ -230,11 +230,11 @@ Write-Host "          | where TimeGenerated > ago($($LookbackHours)h)" -Foregrou
 Write-Host ""
 Write-Host "  3. Evidence file is at:" -ForegroundColor White
 Write-Host "     $reportFile" -ForegroundColor Cyan
-Write-Host "     (This file SURVIVES VMware snapshot revert — it is on the DC)" -ForegroundColor DarkGray
+Write-Host "     (This file SURVIVES VMware snapshot revert -- it is on the DC)" -ForegroundColor DarkGray
 Write-Host "     NOTE: Copy it somewhere else if you want to be safe." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  4. REVERT VMware snapshot to baseline" -ForegroundColor White
 Write-Host ""
-Write-Host "  5. After revert — run this to verify clean state:" -ForegroundColor White
+Write-Host "  5. After revert -- run this to verify clean state:" -ForegroundColor White
 Write-Host "     C:\Users\Administrator\Desktop\End-AttackSim.ps1 -PostRevert" -ForegroundColor Cyan
 Write-Host ""

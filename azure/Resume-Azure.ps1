@@ -1,131 +1,74 @@
-﻿# ============================================================
-# Resume-Azure.ps1
-# Restarts all paused capstone resources safely.
-# Automatically fixes the dynamic IP issue on the Volatility VM.
-# Run this every time you want to work on the project.
+# ============================================================
+# Resume-Azure.ps1  (subscription 824f770b — rebuilt 2026-07-23)
+# Restarts all paused capstone resources on the CURRENT subscription.
+# New architecture: the Volatility VM worker polls Service Bus directly,
+# so the old "inject VM IP into Function App" step is obsolete and removed.
 # ============================================================
 
+$SUB        = "824f770b-79bf-485f-8664-3dba884fa425"
 $RG         = "HybridDetectionRG"
 $VM         = "VolatilityAnalysisVM"
 $WORKSPACE  = "HybridDetectionWS"
-$FUNCAPP    = "GoldenTicketProcessor"
-$STATE_FILE = "$env:USERPROFILE\Desktop\azure-pause-state.json"
+$FUNCAPP    = "gtprocessor824f770b"
+$SBNS       = "hybriddetsb-824f770b"
+$SSHKEY     = "C:\Users\Administrator\.ssh\id_rsa"   # NOTE: id_rsa, not the old .pem
+$ARC        = "/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.HybridCompute/machines/WIN-09GD99A8DPG"
+$DCRID      = "/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.Insights/dataCollectionRules/DCR-Security-Kerberos"
 
+# All 16 scheduled analytics rules on this subscription
 $rules = @(
-    "gt-rc4-downgrade",
-    "gt-service-enum",
-    "gt-ptt-detection",
-    "gt-indirect-indicators",
-    "sidhistory-high-risk-sid",
-    "sidhistory-delta-detection",
-    "sidhistory-privileged-logon-correlation"
+    "gt-rc4-downgrade","gt-ptt-detection","gt-aes-golden-ticket","gt-pass-the-hash",
+    "gt-skeleton-key","gt-indirect-indicators","gt-service-enum","dc-sync-detection",
+    "krbtgt-password-reset","kerberoasting-detection","asrep-roasting-detection",
+    "honey-account-alert","sidhistory-high-risk-sid","sidhistory-delta-detection",
+    "sidhistory-privileged-logon-correlation","volatility-high-risk-memory"
 )
 
-Write-Host ""
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  RESUMING AZURE RESOURCES                  " -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host ""
+az account set --subscription $SUB | Out-Null
+Write-Host "`n=== RESUMING AZURE RESOURCES (sub 824f770b) ===`n" -ForegroundColor Cyan
 
-# ── Step 1: Start Volatility VM ──────────────────────────────
-Write-Host "[1/5] Starting VolatilityAnalysisVM..." -ForegroundColor Yellow
-$vmState = az vm show -g $RG -n $VM --show-details --query "powerState" -o tsv 2>$null
+# Step 1: Start Volatility VM
+Write-Host "[1/6] Starting $VM..." -ForegroundColor Yellow
+$state = az vm show -g $RG -n $VM --show-details --query "powerState" -o tsv 2>$null
+if ($state -ne "VM running") { az vm start -g $RG -n $VM | Out-Null }
+$ip = az vm show -g $RG -n $VM -d --query "publicIps" -o tsv 2>$null
+Write-Host "      VM running. IP: $ip" -ForegroundColor Green
 
-if ($vmState -ne "VM running") {
-    az vm start -g $RG -n $VM
-    Write-Host "      VM started. Waiting for public IP assignment..." -ForegroundColor Green
-
-    # Poll until IP is assigned (dynamic IP takes ~30 seconds after start)
-    $newIP = $null
-    $attempts = 0
-    while (-not $newIP -and $attempts -lt 20) {
-        Start-Sleep -Seconds 10
-        $newIP = az vm show -g $RG -n $VM -d --query "publicIps" -o tsv 2>$null
-        $attempts++
-        if (-not $newIP) { Write-Host "      Waiting for IP... ($($attempts * 10)s)" -ForegroundColor DarkGray }
-    }
-} else {
-    Write-Host "      VM is already running." -ForegroundColor Green
-    $newIP = az vm show -g $RG -n $VM -d --query "publicIps" -o tsv 2>$null
+# Step 2: Verify Volatility worker daemon (worker polls Service Bus via Managed Identity)
+Write-Host "[2/6] Verifying volatility-worker daemon over SSH..." -ForegroundColor Yellow
+if ($ip) {
+    $svc = ssh -i $SSHKEY -o ConnectTimeout=15 -o StrictHostKeyChecking=no "azureuser@$ip" "systemctl is-active volatility-worker" 2>$null
+    if ($svc -eq "active") { Write-Host "      volatility-worker: ACTIVE" -ForegroundColor Green }
+    else { Write-Host "      volatility-worker NOT active ($svc) - run: sudo systemctl start volatility-worker" -ForegroundColor Red }
 }
 
-if (-not $newIP) {
-    Write-Host "      WARNING: Could not retrieve VM IP after 200s. Check Azure Portal." -ForegroundColor Red
-    $newIP = "UNKNOWN"
-} else {
-    Write-Host "      New Volatility VM IP: $newIP" -ForegroundColor Green
+# Step 3: Restore DCR association to resume Log Analytics ingestion
+Write-Host "[3/6] Restoring DCR-DC-Association..." -ForegroundColor Yellow
+$assoc = az monitor data-collection rule association show --name DCR-DC-Association --resource $ARC -o tsv 2>$null
+if (-not $assoc) {
+    az monitor data-collection rule association create --name DCR-DC-Association --resource $ARC --rule-id $DCRID 2>$null | Out-Null
+    Write-Host "      DCR-DC-Association created. Kerberos events flowing." -ForegroundColor Green
+} else { Write-Host "      DCR-DC-Association already active." -ForegroundColor Green }
+
+# Step 4: Re-enable the 16 Sentinel analytics rules
+Write-Host "[4/6] Re-enabling Sentinel analytics rules..." -ForegroundColor Yellow
+foreach ($r in $rules) {
+    az sentinel alert-rule update --resource-group $RG --workspace-name $WORKSPACE --rule-id $r --enabled true 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-Host "      Enabled: $r" -ForegroundColor Green }
+    else { Write-Host "      Skipped/failed: $r" -ForegroundColor DarkYellow }
 }
 
-# ── Step 2: Fix Dynamic IP in Function App ───────────────────
-# WHY: The public IP changes every time the VM starts from deallocated state.
-#      Without this update the Function App would try to SSH to the old IP
-#      and all memory analysis jobs would silently fail.
-Write-Host ""
-Write-Host "[2/5] Updating Function App with new VM IP ($newIP)..." -ForegroundColor Yellow
-if ($newIP -ne "UNKNOWN") {
-    az functionapp config appsettings set `
-        -g $RG -n $FUNCAPP `
-        --settings "VOLATILITY_VM_IP=$newIP" | Out-Null
-    Write-Host "      VOLATILITY_VM_IP updated in GoldenTicketProcessor." -ForegroundColor Green
-} else {
-    Write-Host "      Skipped — IP unknown. Update manually in Function App settings." -ForegroundColor Red
-}
+# Step 5: Start Function App
+Write-Host "[5/6] Starting Function App $FUNCAPP..." -ForegroundColor Yellow
+az functionapp start -g $RG -n $FUNCAPP 2>$null | Out-Null
+Write-Host "      $FUNCAPP started." -ForegroundColor Green
 
-# ── Step 3: Restore DCR Association to resume Log Analytics ingestion ────────
-# WHY: AMA v1.42.0.0 runs as Arc-managed processes (MonAgentCore/Host/Launcher/Manager),
-#      not as a Windows service — Start-Service has no effect and is not needed.
-#      AMA runs automatically via the Arc ExtensionService.
-#      Restoring the DCR association tells AMA what events to collect and forward.
-Write-Host ""
-Write-Host "[3/5] Restoring DCR association to resume Log Analytics ingestion..." -ForegroundColor Yellow
-$arcResource = "/subscriptions/76e0ae82-1f95-44ed-a9af-13a1df28a08c/resourceGroups/HybridDetectionRG/providers/Microsoft.HybridCompute/machines/WIN-09GD99A8DPG"
-$dcrId       = "/subscriptions/76e0ae82-1f95-44ed-a9af-13a1df28a08c/resourceGroups/HybridDetectionRG/providers/Microsoft.Insights/dataCollectionRules/DCR-Security-Kerberos"
-$assocExists = az monitor data-collection rule association show `
-    --name DCR-DC-Association --resource $arcResource -o tsv 2>$null
-if (-not $assocExists) {
-    az monitor data-collection rule association create `
-        --name DCR-DC-Association --resource $arcResource --rule-id $dcrId 2>$null
-    Write-Host "      DCR-DC-Association created. Kerberos events will flow to Sentinel." -ForegroundColor Green
-} else {
-    Write-Host "      DCR-DC-Association already exists. Ingestion active." -ForegroundColor Green
-}
+# Step 6: Re-enable DC scheduled tasks
+Write-Host "[6/6] Re-enabling DC scheduled tasks..." -ForegroundColor Yellow
+schtasks /change /tn "\AD-SIDHistory-Inventory" /enable 2>$null | Out-Null
+schtasks /change /tn "\AD-LSASS-Capture" /enable 2>$null | Out-Null
+Write-Host "      AD-SIDHistory-Inventory + AD-LSASS-Capture enabled." -ForegroundColor Green
 
-# ── Step 4: Re-enable Sentinel Analytics Rules ───────────────
-Write-Host ""
-Write-Host "[4/5] Re-enabling Sentinel Analytics Rules..." -ForegroundColor Yellow
-foreach ($rule in $rules) {
-    $result = az sentinel alert-rule update `
-        --resource-group $RG `
-        --workspace-name $WORKSPACE `
-        --rule-id $rule `
-        --enabled true 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "      Enabled: $rule" -ForegroundColor Green
-    } else {
-        Write-Host "      Could not enable: $rule" -ForegroundColor Red
-    }
-}
-
-# ── Step 5: Start Function App ───────────────────────────────
-Write-Host ""
-Write-Host "[5/5] Starting Function App..." -ForegroundColor Yellow
-az functionapp start -g $RG -n $FUNCAPP 2>$null
-Write-Host "      GoldenTicketProcessor started." -ForegroundColor Green
-
-# ── Final Status Summary ─────────────────────────────────────
-Write-Host ""
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  ALL RESOURCES RESUMED                     " -ForegroundColor Cyan
-Write-Host "============================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  Resource Status:" -ForegroundColor White
-Write-Host "    VolatilityAnalysisVM   RUNNING   IP: $newIP  (Volatility worker auto-started via systemd)" -ForegroundColor Green
-Write-Host "    DCR-DC-Association     ACTIVE    (events flowing to Sentinel)" -ForegroundColor Green
-Write-Host "    Sentinel Rules         ENABLED   (7 detection rules active)" -ForegroundColor Green
-Write-Host "    GoldenTicketProcessor  RUNNING" -ForegroundColor Green
-Write-Host ""
-Write-Host "  IMPORTANT — New VM IP: $newIP" -ForegroundColor Yellow
-Write-Host "  If you SSH into the Volatility VM, use this new IP." -ForegroundColor Yellow
-Write-Host ""
-Write-Host "  To pause again and save credits: Run Pause-Azure.ps1" -ForegroundColor DarkGray
-Write-Host ""
+Write-Host "`n=== ALL RESOURCES RESUMED ===" -ForegroundColor Cyan
+Write-Host "  VM IP: $ip   (dynamic - changes each start; worker uses Managed Identity, no IP wiring needed)" -ForegroundColor Yellow
+Write-Host "  To pause again: Pause-Azure.ps1`n" -ForegroundColor DarkGray
