@@ -1,0 +1,141 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse in Active Directory\n**MTech Capstone — Microsoft Sentinel Hybrid Detection Framework**\n\nDomain: `corp.local`  |  Domain Controller: `WIN-09GD99A8DPG`  |  Three detection paths: **Kerberos Logs**, **SIDHistory Inventory**, **LSASS Memory Forensics (pypykatz)**\n\n---"
+      },
+      "name": "title"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union (SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'Golden Ticket' | summarize Value=dcount(IncidentNumber) | extend Metric='Golden Ticket', Ord=1),(SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'SIDHistory' | summarize Value=dcount(IncidentNumber) | extend Metric='SIDHistory Abuse', Ord=2),(VolatilityAnalysis_CL | where TimeGenerated>ago(7d) | where riskLevel_s=='CRITICAL' | summarize Value=count() | extend Metric='Memory CRITICAL (pypykatz)', Ord=3),(SecurityIncident | where TimeGenerated>ago(7d) | summarize Value=dcount(IncidentNumber) | extend Metric='Total Incidents', Ord=4) | order by Ord asc | project Metric, Value",
+        "size": 3,
+        "title": "Detection Summary — last 7 days",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": { "columnMatch": "Metric", "formatter": 1 },
+          "leftContent": { "columnMatch": "Value", "formatter": 12, "formatOptions": { "palette": "blue" } },
+          "showBorder": true,
+          "size": "auto"
+        }
+      },
+      "name": "kpis"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityEvent | where TimeGenerated>ago(24h) | where EventID in (4768,4769,4672,4624,4625,4662) | extend EventName=case(EventID==4768,'4768 TGT Request',EventID==4769,'4769 TGS Request',EventID==4672,'4672 Special Privileges',EventID==4624,'4624 Logon',EventID==4625,'4625 Failed Logon',EventID==4662,'4662 DS Access',tostring(EventID)) | summarize Count=count() by EventName | order by Count desc",
+        "size": 0,
+        "title": "Kerberos Security Events by Type (24h)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "customWidth": "50",
+      "name": "kerberos-by-type"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityEvent | where TimeGenerated>ago(24h) | where EventID in (4768,4769,4672) | extend Ev=case(EventID==4768,'TGT (4768)',EventID==4769,'TGS (4769)',EventID==4672,'PrivUse (4672)',tostring(EventID)) | summarize Count=count() by bin(TimeGenerated,30m), Ev",
+        "size": 0,
+        "title": "Kerberos Activity Timeline (24h)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "customWidth": "50",
+      "name": "kerberos-timeline"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident | where TimeGenerated>ago(7d) | extend DetectionType=case(Title has 'Golden Ticket','Golden Ticket (Log)',Title has 'SIDHistory','SIDHistory Abuse',Title has 'Volatility','Memory Forensics (pypykatz)','Other') | where DetectionType!='Other' | summarize Incidents=dcount(IncidentNumber) by DetectionType",
+        "size": 0,
+        "title": "Incidents by Detection Path (7d)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "customWidth": "50",
+      "name": "incidents-by-type"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SIDHistoryInventory_CL | where TimeGenerated>ago(7d) and RiskLevel_s=='HIGH' | project TimeGenerated, Account=ObjectName_s, SIDHistory=SIDHistoryEntry_s, Risk=RiskLevel_s | order by TimeGenerated desc | take 10",
+        "size": 0,
+        "title": "SIDHistory — HIGH-risk privileged SIDs",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            { "columnMatch": "Risk", "formatter": 18, "formatOptions": { "thresholdsOptions": "colors", "thresholdsGrid": [ { "operator": "==", "thresholdValue": "HIGH", "representation": "red", "text": "{0}{1}" }, { "operator": "Default", "thresholdValue": null, "representation": "yellow", "text": "{0}{1}" } ] } }
+          ]
+        }
+      },
+      "customWidth": "50",
+      "name": "sidhistory-high"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Novel Contribution - Memory-Based Golden Ticket Detection (pypykatz)\nLSASS memory dumps are analysed offline. A **TGT (krbtgt) for a user account resident in the Domain Controller's memory** is the signature of an injected Pass-the-Ticket **Golden Ticket**. Standard **Volatility 3 cannot extract Kerberos tickets** on modern Windows - this framework uses **pypykatz**, which does. This is the detection that log-only tools miss. (MITRE **T1558.001**)"
+      },
+      "name": "memory-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "VolatilityAnalysis_CL | where TimeGenerated>ago(7d) and riskLevel_s=='CRITICAL' | extend Detail=tostring(parse_json(kerberosAnalysis_indicators_s)[0].description) | extend TargetAccount=tostring(extract(@'account\\(s\\) \\[([^\\]]+)\\]',1,Detail)) | project TimeGenerated, Risk=riskLevel_s, Indicator=indicator_s, TargetAccount, Tickets=toint(kerberosAnalysis_totalTickets_d), Dump=blobName_s | order by TimeGenerated desc | take 15",
+        "size": 0,
+        "title": "Volatility / pypykatz — CRITICAL memory detections (forged TGT found in LSASS)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            { "columnMatch": "Risk", "formatter": 18, "formatOptions": { "thresholdsOptions": "colors", "thresholdsGrid": [ { "operator": "==", "thresholdValue": "CRITICAL", "representation": "redBright", "text": "{0}{1}" }, { "operator": "Default", "thresholdValue": null, "representation": "yellow", "text": "{0}{1}" } ] } },
+            { "columnMatch": "Tickets", "formatter": 8, "formatOptions": { "palette": "red" } }
+          ]
+        }
+      },
+      "name": "volatility-critical"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### MITRE ATT&CK Coverage\n| Technique | Name | Detection Path |\n|---|---|---|\n| **T1558.001** | Golden Ticket | Kerberos Log + **Memory** |\n| **T1550** | Pass the Ticket | Kerberos Log |\n| **T1134.005** | SID-History Injection | Inventory |\n| **T1003** | LSASS Credential Access | Memory Forensics |\n| **T1556** | Skeleton Key | Kerberos Log |\n| **T1558.003 / .004** | Kerberoasting / AS-REP | Kerberos Log |"
+      },
+      "customWidth": "50",
+      "name": "mitre"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident | where TimeGenerated>ago(7d) | summarize Count=dcount(IncidentNumber) by Status | order by Count desc",
+        "size": 0,
+        "title": "Sentinel Incidents by Status (7d)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "customWidth": "50",
+      "name": "incidents-status"
+    }
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

@@ -264,17 +264,35 @@ def compute_risk(kerberos_analysis: dict, mutants: list, processes: list, cmdlin
 
 
 # ── Main Analysis Orchestrator ────────────────────────────────
+def _kirbi_lifetime_days(path):
+    """Return a mimikatz-style .kirbi ticket lifetime in days (etype=0 KRB-CRED), else None."""
+    try:
+        from minikerberos.protocol.asn1_structs import KRBCRED, EncKrbCredPart
+        kc = KRBCRED.load(open(path, "rb").read()).native
+        enc = kc.get("enc-part", {})
+        if enc.get("etype") != 0:
+            return None
+        ekcp = EncKrbCredPart.load(enc["cipher"]).native
+        ti = ekcp["ticket-info"][0]
+        st, en = ti.get("starttime"), ti.get("endtime")
+        return (en - st).days if st and en else None
+    except Exception:
+        return None
+
+
 def extract_kerberos_pypykatz(dump_path: str) -> dict:
     """
-    Extract Kerberos tickets from an LSASS minidump using pypykatz.
-    Volatility 3 has no working Kerberos-ticket plugin on modern Windows, so the
-    old windows.kerberos.Kerberos call always returned 0 tickets (false CLEAN).
+    Extract Kerberos tickets from an LSASS minidump using pypykatz and analyse
+    ticket LIFETIME. Volatility 3 has no working Kerberos plugin on modern Windows.
 
-    Golden Ticket signature: a TGT (service = krbtgt) issued to a USER account
-    (not a machine account ending in '$') found resident in the Domain Controller's
-    LSASS memory = injected Pass-the-Ticket Golden Ticket.
+    Golden Ticket signature: a TGT (service = krbtgt) for a USER account (not a
+    machine account ending in '$') resident in the DC's LSASS, WITH an anomalously
+    long lifetime. A forged mimikatz Golden Ticket defaults to ~3650 days (10 yrs);
+    a legitimate ticket is ~10 hours. The lifetime check distinguishes a forged
+    ticket from a legitimate admin logon and sharply reduces false positives.
     """
     import glob, shutil, tempfile
+    GOLDEN_LIFETIME_DAYS = 365
     tdir = tempfile.mkdtemp(prefix="ktix_", dir=WORK_DIR)
     tickets, golden = [], []
     try:
@@ -287,33 +305,45 @@ def extract_kerberos_pypykatz(dump_path: str) -> dict:
             client  = parts[2] if len(parts) > 2 else ""
             service = parts[3] if len(parts) > 3 else ""
             t = {"principalName": client, "service": service, "type": ttype, "file": base}
+            is_user_tgt = (ttype.upper() == "TGT" and service.lower().startswith("krbtgt")
+                           and client and not client.endswith("$") and client.lower() != "krbtgt")
+            if is_user_tgt:
+                life = _kirbi_lifetime_days(f)
+                t["lifetimeDays"] = life
+                # Golden = anomalously long-lived user TGT (unreadable lifetime kept as suspicious)
+                if life is None or life > GOLDEN_LIFETIME_DAYS:
+                    golden.append(t)
+                # else: normal-lifetime user TGT = likely a legitimate admin logon (not flagged)
             tickets.append(t)
-            if (ttype.upper() == "TGT" and service.lower().startswith("krbtgt")
-                    and client and not client.endswith("$") and client.lower() != "krbtgt"):
-                golden.append(t)
     except Exception as e:
         log.warning(f"pypykatz extraction failed: {e}")
     finally:
         shutil.rmtree(tdir, ignore_errors=True)
 
     indicators = []
+    max_life = None
     if golden:
+        lifes = [g.get("lifetimeDays") for g in golden if g.get("lifetimeDays")]
+        max_life = max(lifes) if lifes else None
         users = ", ".join(sorted(set(g["principalName"] for g in golden)))
+        life_txt = f" with an anomalous {max_life}-day (~{round(max_life/365)}-year) lifetime" if max_life else ""
         indicators.append({
             "type":        "GOLDEN_TICKET_MEMORY",
             "severity":    "CRITICAL",
-            "description": f"Forged TGT for privileged user account(s) [{users}] found resident in DC LSASS memory - Pass-the-Ticket Golden Ticket",
+            "description": f"Forged TGT for privileged user account(s) [{users}]{life_txt} found resident in DC LSASS memory - Pass-the-Ticket Golden Ticket",
             "tickets":     golden[:5],
+            "maxLifetimeDays": max_life,
             "mitre":       "T1558.001",
         })
 
     return {
-        "totalTickets":   len(tickets),
-        "rc4Count":       0,
-        "aesCount":       0,
-        "longLivedCount": len(golden),   # forces compute_risk() to CRITICAL
-        "indicators":     indicators,
-        "_tickets":       tickets,
+        "totalTickets":    len(tickets),
+        "rc4Count":        0,
+        "aesCount":        0,
+        "longLivedCount":  len(golden),   # forces compute_risk() to CRITICAL
+        "maxLifetimeDays": max_life,
+        "indicators":      indicators,
+        "_tickets":        tickets,
     }
 
 
