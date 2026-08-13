@@ -1,0 +1,119 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# Dual-Track Attack Corroboration Dashboard\n**The same attack, confirmed by two independent methods** - Kerberos log analytics (behavioural) AND LSASS memory forensics via pypykatz (the actual forged ticket). Log-only SIEM shows an *inference*; this shows the *artifact*.\n\n---"
+      },
+      "name": "title"
+    },
+    {
+      "type": 1,
+      "content": { "json": "## 1. Golden Ticket - CORROBORATION (both tracks agree)" },
+      "name": "corr-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let win=24h; let logTrack=SecurityEvent | where TimeGenerated>ago(win) | where EventID==4769 | extend Acct=tostring(extract(@'<Data Name=\"TargetUserName\">([^<]+)<',1,EventData)) | where isnotempty(Acct) | extend AccountName=tostring(split(Acct,'@')[0]) | summarize LogEvents=count() by AccountName; let memTrack=VolatilityAnalysis_CL | where TimeGenerated>ago(win) | where riskLevel_s=='CRITICAL' | extend Detail=tostring(parse_json(kerberosAnalysis_indicators_s)[0].description) | extend AccountName=tostring(extract(@'account\\(s\\) \\[([^\\]]+)\\]',1,Detail)) | extend LifetimeDays=toint(extract(@'([0-9]+)-day',1,Detail)) | where isnotempty(AccountName) | summarize MemDetections=count(), MaxLifetimeDays=max(LifetimeDays) by AccountName; logTrack | join kind=inner memTrack on AccountName | extend Verdict='CONFIRMED - Log + Memory' | project Account=AccountName, LogTrack_TGS_4769=LogEvents, MemoryTrack_Detections=MemDetections, ForgedTicketLifetimeDays=MaxLifetimeDays, Verdict",
+        "size": 0,
+        "title": "Golden Ticket confirmed by BOTH the log track and the memory track (same account)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            { "columnMatch": "Verdict", "formatter": 18, "formatOptions": { "thresholdsOptions": "colors", "thresholdsGrid": [ { "operator": "contains", "thresholdValue": "CONFIRMED", "representation": "green", "text": "{0}{1}" }, { "operator": "Default", "thresholdValue": null, "representation": "yellow", "text": "{0}{1}" } ] } },
+            { "columnMatch": "ForgedTicketLifetimeDays", "formatter": 8, "formatOptions": { "palette": "red" } }
+          ]
+        }
+      },
+      "name": "corroboration"
+    },
+    {
+      "type": 1,
+      "content": { "json": "## 2. The two tracks, side by side" },
+      "name": "sbs-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityEvent | where TimeGenerated>ago(24h) | where EventID==4769 | extend Account=tostring(extract(@'<Data Name=\"TargetUserName\">([^<]+)<',1,EventData)) | extend Service=tostring(extract(@'<Data Name=\"ServiceName\">([^<]+)<',1,EventData)) | where Account startswith 'Administrator' | project TimeGenerated, Account, Service | order by TimeGenerated desc | take 12",
+        "size": 0,
+        "title": "TRACK 1 - LOG EVIDENCE: TGS requests (4769) = behavioural signal (an inference)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "customWidth": "50",
+      "name": "track1-log"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "VolatilityAnalysis_CL | where TimeGenerated>ago(24h) | where riskLevel_s=='CRITICAL' | extend Detail=tostring(parse_json(kerberosAnalysis_indicators_s)[0].description) | extend TargetAccount=tostring(extract(@'account\\(s\\) \\[([^\\]]+)\\]',1,Detail)) | extend LifetimeDays=toint(extract(@'([0-9]+)-day',1,Detail)) | extend RecoveredTicket=extract(@'\"file\":\\s*\"([^\"]+\\.kirbi)\"',1,kerberosAnalysis_indicators_s) | project TimeGenerated, TargetAccount, LifetimeDays, RecoveredTicket | order by TimeGenerated desc | take 12",
+        "size": 0,
+        "title": "TRACK 2 - MEMORY EVIDENCE: the recovered forged ticket + 10-year lifetime (the artifact)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            { "columnMatch": "LifetimeDays", "formatter": 8, "formatOptions": { "palette": "red" } }
+          ]
+        }
+      },
+      "customWidth": "50",
+      "name": "track2-memory"
+    },
+    {
+      "type": 1,
+      "content": { "json": "## 3. SIDHistory Abuse - Inventory Detection" },
+      "name": "sid-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SIDHistoryInventory_CL | where TimeGenerated>ago(24h) and RiskLevel_s=='HIGH' | project TimeGenerated, Account=ObjectName_s, SIDHistory=SIDHistoryEntry_s, Risk=RiskLevel_s | order by TimeGenerated desc | take 10",
+        "size": 0,
+        "title": "SIDHistory - HIGH-risk privileged SIDs detected via inventory",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": { "formatters": [ { "columnMatch": "Risk", "formatter": 18, "formatOptions": { "thresholdsOptions": "colors", "thresholdsGrid": [ { "operator": "==", "thresholdValue": "HIGH", "representation": "red", "text": "{0}{1}" }, { "operator": "Default", "thresholdValue": null, "representation": "yellow", "text": "{0}{1}" } ] } } ] }
+      },
+      "name": "sidhistory"
+    },
+    {
+      "type": 1,
+      "content": { "json": "## 4. Overall status" },
+      "name": "overall-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union (SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'Golden Ticket' | summarize Incidents=dcount(IncidentNumber) | extend Detection='Golden Ticket (Log)'),(SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'SIDHistory' | summarize Incidents=dcount(IncidentNumber) | extend Detection='SIDHistory (Inventory)'),(SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'Volatility' | summarize Incidents=dcount(IncidentNumber) | extend Detection='Memory (pypykatz)') | project Detection, Incidents",
+        "size": 0,
+        "title": "Incidents by detection path (24h)",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "customWidth": "50",
+      "name": "incident-summary"
+    },
+    {
+      "type": 1,
+      "content": { "json": "### MITRE ATT&CK\n| Technique | Name | Track |\n|---|---|---|\n| T1558.001 | Golden Ticket | Log + Memory |\n| T1550 | Pass the Ticket | Log |\n| T1134.005 | SID-History Injection | Inventory |\n| T1003 | LSASS Credential Access | Memory |" },
+      "customWidth": "50",
+      "name": "mitre"
+    }
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
