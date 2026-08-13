@@ -25,6 +25,8 @@ $DCR   = "DCR-Security-Kerberos"
 $ASSOC = "dcr-dc-association"
 $QUEUES= @("memory-dump-queue","analysis-queue")
 $TASKS = @("\AD-LSASS-Capture","\AD-SIDHistory-Inventory")
+$DASH_URL = "https://capstonedash824f.z13.web.core.windows.net/"
+$DASH_LA  = "capstone-dashboard-api"   # Logic App that feeds the live dashboard
 
 function Step($m){ Write-Host "`n>>> $m" -ForegroundColor Cyan }
 function OK($m){ Write-Host "  [ OK ] $m" -ForegroundColor Green }
@@ -135,7 +137,21 @@ if(-not $SkipAzure){
   OK "Only NEW captures will be processed from here (target <= $MaxDumpAgeMin min old)"
 }
 
-# ---- 7. Optional fresh capture ----
+# ---- 7. Live dashboard health ----
+if(-not $SkipAzure){
+  Step "Live cloud dashboard"
+  $la = az resource show --ids "/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.Logic/workflows/$DASH_LA" --query "properties.state" -o tsv 2>$null
+  if($la -eq "Enabled"){ OK "dashboard API ($DASH_LA) Enabled" }
+  elseif($la){ WARN "dashboard API state = $la (expected Enabled)" }
+  else { WARN "dashboard API not found" }
+  try{
+    $code = (Invoke-WebRequest -Uri $DASH_URL -Method Head -TimeoutSec 15 -UseBasicParsing).StatusCode
+    if($code -eq 200){ OK "dashboard site serving (HTTP 200)" } else { WARN "dashboard site HTTP $code" }
+  } catch { WARN "dashboard site not reachable: $($_.Exception.Message)" }
+  Write-Host "  Live dashboard: $DASH_URL" -ForegroundColor Cyan
+}
+
+# ---- 8. Optional fresh capture ----
 if($FreshCapture){
   Step "Trigger one fresh LSASS capture"
   schtasks /run /tn "\AD-LSASS-Capture" 2>$null | Out-Null
@@ -144,5 +160,6 @@ if($FreshCapture){
 
 Write-Host "`n==================================================" -ForegroundColor White
 Write-Host "  START-LAB COMPLETE - lab is UP" -ForegroundColor Green
+Write-Host "  Live dashboard : $DASH_URL" -ForegroundColor Cyan
 Write-Host "  Run  Stop-Lab.ps1  before powering off the DC VM" -ForegroundColor White
 Write-Host "==================================================" -ForegroundColor White

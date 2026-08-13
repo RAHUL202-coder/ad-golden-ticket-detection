@@ -16,6 +16,7 @@ $VM="VolatilityAnalysisVM"
 $FUNC="gtprocessor824f770b"
 $SBNS="hybriddetsb-824f770b"
 $QUEUES=@("memory-dump-queue","analysis-queue")
+$DASH_URL="https://capstonedash824f.z13.web.core.windows.net/"
 
 function Step($m){ Write-Host "`n>>> $m" -ForegroundColor Cyan }
 function OK($m){ Write-Host "  [ OK ] $m" -ForegroundColor Green }
@@ -71,11 +72,18 @@ if($acct -eq $SUB){
     az functionapp stop -g $RG -n $FUNC 2>$null | Out-Null
     OK "stopped"
   }
+
+  # Live dashboard is intentionally LEFT RUNNING - it reads Log Analytics only
+  # (independent of the DC / Volatility VM), so it stays alive after stop.
+  Step "Live cloud dashboard"
+  OK "left RUNNING (reads Log Analytics; independent of the VM)"
+  Write-Host "  Still live: $DASH_URL" -ForegroundColor Cyan
 } else {
   WARN "Not signed in (az login --tenant $TENANT). Skipped Azure stop; nothing changed."
 }
 
 Write-Host "`n==================================================" -ForegroundColor White
 Write-Host "  STOP-LAB COMPLETE - safe to power off the DC VM" -ForegroundColor Green
+Write-Host "  Live dashboard stays up: $DASH_URL" -ForegroundColor Cyan
 Write-Host "  Next time: power on DC, then run  Start-Lab.ps1" -ForegroundColor White
 Write-Host "==================================================" -ForegroundColor White
