@@ -1,5 +1,14 @@
 # CLAUDE.md — MTech Capstone Project Context
-# Last updated: 2026-08-06 (migrated to sub 824f770b; pypykatz memory detection; KQL fixes)
+# Last updated: 2026-08-13 (ticket-lifetime detection, real benchmark, LIVE cloud dashboard)
+
+## Latest session highlights (2026-08-13)
+- **Ticket-lifetime detection**: worker now parses `.kirbi` lifetime; a user TGT is flagged Golden ONLY if lifetime > 365 days (forged mimikatz = 3650 days / 10 yr; legit ~10 hr) — big false-positive reduction. `azure/volatility-worker/worker.py` (`extract_kerberos_pypykatz`).
+- **Real accuracy benchmark** (`docs/benchmark-results.md`): SIDHistory detector, 40 labelled samples → Precision/Recall/F1 = **1.00**, FPR = 0. Replaces the earlier unmeasured 87.2/90/100 % (see `docs/REPORT-ERRATA.md`).
+- **LIVE cloud dashboard**: https://capstonedash824f.z13.web.core.windows.net/ — Azure Storage static site + Logic App `capstone-dashboard-api` (managed identity → Log Analytics, no OAuth), auto-refresh 60 s. Source: `azure/live-dashboard/`.
+- **2 Sentinel workbooks** (Capstone Evidence + Attack Corroboration) in `azure/workbooks/`; **5 saved queries** (workspace category "Capstone Evidence").
+- **Suppression** enabled (PT1H) on 15/16 rules → clean incident list; Volatility rule now PT5M / 15-min window; entity mappings added (gt-ptt = Account+Host+IP for a connected attack-story graph).
+- **Lab control**: `azure/lab-control/Start-Lab.ps1` / `Stop-Lab.ps1` (also `C:\SecurityScripts\`) — start/stop the whole hybrid lab, self-heal AMA, purge stale dump backlog (only fresh dumps analysed). AMA-suspend root cause fixed.
+- ⚠️ **Not yet pushed to GitHub** — local git only.
 
 ## Project Identity
 - **Title:** Memory-Based Detection of Golden Ticket and SIDHistory Abuse in Active Directory
