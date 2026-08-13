@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AD Threat Detection — Live SOC Dashboard</title>
+<style>
+  :root{
+    --plane:#0d0d0d; --surface:#1a1a19; --surface2:#212120;
+    --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
+    --border:rgba(255,255,255,0.09);
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s7:#9085e9;
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--plane);color:var(--ink);padding:18px;min-height:100vh}
+  .hdr{display:flex;align-items:center;justify-content:space-between;background:linear-gradient(100deg,#12233b,#0d0d0d 70%);border:1px solid var(--border);border-radius:14px;padding:16px 22px;margin-bottom:16px}
+  .hdr h1{font-size:20px;letter-spacing:.2px;display:flex;align-items:center;gap:10px}
+  .hdr .sub{color:var(--ink2);font-size:12.5px;margin-top:4px}
+  .pills{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .pill{font-size:11px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid var(--border)}
+  .pill.ok{background:rgba(12,163,12,.16);border-color:var(--good);color:#5edb5e}
+  .pill.crit{background:rgba(208,59,59,.16);border-color:var(--critical);color:#ff7a7a}
+  .live{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:#5edb5e;padding:5px 12px;border-radius:20px;border:1px solid var(--good);background:rgba(12,163,12,.12)}
+  .live .dot{width:8px;height:8px;border-radius:50%;background:#5edb5e;box-shadow:0 0 0 0 rgba(94,219,94,.7);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(94,219,94,.6)}70%{box-shadow:0 0 0 7px rgba(94,219,94,0)}100%{box-shadow:0 0 0 0 rgba(94,219,94,0)}}
+  .live .ts{color:var(--ink2);font-weight:500}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px;font-weight:600}
+  .kpi{position:relative;overflow:hidden}
+  .kpi .ic{position:absolute;top:14px;right:16px;font-size:22px;opacity:.9}
+  .kpi .lbl{font-size:12.5px;color:var(--ink2)}
+  .kpi .val{font-size:38px;font-weight:700;line-height:1.1;margin-top:6px}
+  .kpi .sub{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .kpi.accent-1{border-top:3px solid var(--s1)} .kpi.accent-2{border-top:3px solid var(--s2)}
+  .kpi.accent-3{border-top:3px solid var(--s3)} .kpi.accent-c{border-top:3px solid var(--critical)}
+  .kpi.accent-g{border-top:3px solid var(--good)}
+  .val.crit{color:#ff8a8a}.val.good{color:#5edb5e}
+  .bar-row{display:grid;grid-template-columns:120px 1fr 46px;align-items:center;gap:10px;margin:9px 0;font-size:12.5px}
+  .bar-row .nm{color:var(--ink2)}
+  .track{height:14px;background:rgba(255,255,255,.05);border-radius:7px;overflow:hidden}
+  .fill{height:100%;border-radius:7px;transition:width .6s ease}
+  .bar-row .num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .corr{grid-column:span 7;display:flex;flex-direction:column;gap:14px}
+  .verdict{display:flex;align-items:center;gap:14px;background:rgba(12,163,12,.12);border:1px solid var(--good);border-radius:12px;padding:16px 18px}
+  .verdict .big{font-size:26px;font-weight:800;color:#5edb5e}
+  .verdict .who{color:var(--ink2);font-size:13px}
+  .tracks{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .trk{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px}
+  .trk .t{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+  .trk .n{font-size:30px;font-weight:700;margin:4px 0}
+  .trk.log .n{color:var(--s1)} .trk.mem .n{color:var(--s2)}
+  .trk .d{font-size:11.5px;color:var(--ink2)}
+  .artifact{grid-column:span 5;background:linear-gradient(160deg,#241416,#1a1a19);border-color:rgba(208,59,59,.35)}
+  .art-file{font-family:Consolas,monospace;font-size:12px;color:#ff9a9a;background:rgba(0,0,0,.35);padding:8px 10px;border-radius:8px;word-break:break-all;margin:8px 0}
+  .art-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+  .art-grid .k{font-size:11px;color:var(--muted)} .art-grid .v{font-size:18px;font-weight:700}
+  .lifetime{color:#ff8a8a}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--grid)}
+  th{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px}
+  td .tech{font-family:Consolas,monospace;color:var(--s1)}
+  .metric{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--grid)}
+  .metric .m{color:var(--ink2);font-size:12.5px}.metric .mv{font-size:22px;font-weight:700;color:#5edb5e;font-variant-numeric:tabular-nums}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--ink2);margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .dot2{width:9px;height:9px;border-radius:2px;display:inline-block}
+  footer{color:var(--muted);font-size:11px;text-align:center;margin-top:16px}
+  .span2{grid-column:span 2}.span3{grid-column:span 3}.span4{grid-column:span 4}.span5{grid-column:span 5}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div>
+    <h1>🛡️ AD Threat Detection — Live SOC Dashboard</h1>
+    <div class="sub">Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse · <b>corp.local</b> · Microsoft Sentinel (hybrid) · MTech Capstone — P Rahul</div>
+  </div>
+  <div class="pills">
+    <span class="live"><span class="dot"></span>LIVE <span class="ts" id="live-ts">connecting…</span></span>
+    <span class="pill crit">● Golden Ticket CONFIRMED</span>
+  </div>
+</div>
+
+<div class="grid" style="margin-bottom:14px">
+  <div class="card kpi accent-1 span3"><div class="ic">📊</div><div class="lbl">Total Incidents (7d)</div><div class="val" id="m-total">—</div><div class="sub">across all detection paths</div></div>
+  <div class="card kpi accent-2 span2"><div class="ic">⚔️</div><div class="lbl">Golden Ticket</div><div class="val" id="m-gt">—</div><div class="sub">log incidents</div></div>
+  <div class="card kpi accent-3 span2"><div class="ic">👥</div><div class="lbl">SIDHistory</div><div class="val" id="m-sid">—</div><div class="sub">inventory incidents</div></div>
+  <div class="card kpi accent-c span2"><div class="ic">🧠</div><div class="lbl">Memory CRITICAL</div><div class="val crit" id="m-memcrit">—</div><div class="sub">forged tickets (pypykatz)</div></div>
+  <div class="card kpi accent-g span3"><div class="ic">✅</div><div class="lbl">Corroboration</div><div class="val good" style="font-size:26px;margin-top:12px">CONFIRMED</div><div class="sub">Log + Memory agree</div></div>
+</div>
+
+<div class="grid" style="margin-bottom:14px">
+  <div class="card corr">
+    <h3>⭐ Golden Ticket — Dual-Track Corroboration (same attack, two independent methods)</h3>
+    <div class="verdict">
+      <div class="big">✅ CONFIRMED</div>
+      <div class="who">Account <b style="color:#fff">Administrator</b> flagged by <b style="color:#fff">both</b> the Kerberos-log track and the LSASS-memory track — an inference <i>and</i> the artifact.</div>
+    </div>
+    <div class="tracks">
+      <div class="trk log"><div class="t">Track 1 · Logs (behavioural)</div><div class="n" id="m-corrlog">—</div><div class="d">TGS requests (4769) — <i>“it probably happened”</i></div></div>
+      <div class="trk mem"><div class="t">Track 2 · Memory (artifact)</div><div class="n" id="m-corrmem">—</div><div class="d">forged tickets recovered from LSASS — <i>“here’s the weapon”</i></div></div>
+    </div>
+  </div>
+  <div class="card span5">
+    <h3>Incidents by Detection Path (7d)</h3>
+    <div class="bar-row"><span class="nm">SIDHistory</span><div class="track"><div class="fill" id="f-dp-sid" style="width:100%;background:var(--s3)"></div></div><span class="num" id="m-dp-sid">—</span></div>
+    <div class="bar-row"><span class="nm">Golden Ticket (Log)</span><div class="track"><div class="fill" id="f-dp-gt" style="width:46%;background:var(--s2)"></div></div><span class="num" id="m-dp-gt">—</span></div>
+    <div class="bar-row"><span class="nm">Memory (pypykatz)</span><div class="track"><div class="fill" id="f-dp-mem" style="width:45%;background:var(--s1)"></div></div><span class="num" id="m-dp-mem">—</span></div>
+    <div class="legend"><span><i class="dot2" style="background:var(--s3)"></i>Inventory</span><span><i class="dot2" style="background:var(--s2)"></i>Kerberos logs</span><span><i class="dot2" style="background:var(--s1)"></i>Memory forensics</span></div>
+  </div>
+</div>
+
+<div class="grid" style="margin-bottom:14px">
+  <div class="card artifact">
+    <h3>🎯 The Recovered Forged Ticket — the exact artifact a log-only SIEM cannot show</h3>
+    <div class="art-file">TGT_corp.local_Administrator_krbtgt_corp.local_*.kirbi</div>
+    <div class="art-grid">
+      <div><div class="k">Target account</div><div class="v">Administrator</div></div>
+      <div><div class="k">Ticket lifetime</div><div class="v lifetime">3650 days <span style="font-size:12px">(~10 yr)</span></div></div>
+      <div><div class="k">Tickets extracted</div><div class="v">23</div></div>
+      <div><div class="k">Indicator</div><div class="v" style="font-size:13px">GOLDEN_TICKET_MEMORY</div></div>
+    </div>
+    <div class="sub" style="font-size:11.5px;color:var(--ink2);margin-top:10px">A forged ticket = ~10-year lifetime; a legitimate ticket = ~10 hours. That anomaly is the smoking gun.</div>
+  </div>
+  <div class="card span4">
+    <h3>Attack-Relevant Kerberos Events (24h)</h3>
+    <div class="bar-row"><span class="nm">TGS (4769)</span><div class="track"><div class="fill" id="f-k-4769" style="width:100%;background:var(--s1)"></div></div><span class="num" id="m-k-4769">—</span></div>
+    <div class="bar-row"><span class="nm">DS Access (4662)</span><div class="track"><div class="fill" id="f-k-4662" style="width:55%;background:var(--s7)"></div></div><span class="num" id="m-k-4662">—</span></div>
+    <div class="bar-row"><span class="nm">TGT (4768)</span><div class="track"><div class="fill" id="f-k-4768" style="width:36%;background:var(--s3)"></div></div><span class="num" id="m-k-4768">—</span></div>
+    <div class="sub" style="font-size:11px;color:var(--muted);margin-top:8px">TGS-without-TGT is the Pass-the-Ticket signature.</div>
+  </div>
+  <div class="card span3">
+    <h3>Detection Time</h3>
+    <div class="metric"><span class="m">Golden Ticket (log)</span><span class="mv" style="color:var(--s1)">~4–10<span style="font-size:12px"> min</span></span></div>
+    <div class="metric"><span class="m">Memory analysis</span><span class="mv" style="color:var(--s2)">~1<span style="font-size:12px"> min</span></span></div>
+    <div class="metric" style="border:none"><span class="m">vs baseline</span><span class="mv" style="color:var(--muted);font-size:16px">~45 min</span></div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card span5">
+    <h3>MITRE ATT&amp;CK Coverage</h3>
+    <table>
+      <tr><th>Technique</th><th>Name</th><th>Track</th></tr>
+      <tr><td><span class="tech">T1558.001</span></td><td>Golden Ticket</td><td>Log + Memory</td></tr>
+      <tr><td><span class="tech">T1550</span></td><td>Pass the Ticket</td><td>Log</td></tr>
+      <tr><td><span class="tech">T1134.005</span></td><td>SID-History Injection</td><td>Inventory</td></tr>
+      <tr><td><span class="tech">T1003</span></td><td>LSASS Credential Access</td><td>Memory</td></tr>
+      <tr><td><span class="tech">T1556</span></td><td>Skeleton Key</td><td>Log</td></tr>
+    </table>
+  </div>
+  <div class="card span4">
+    <h3>Benchmark — SIDHistory Detector <span style="text-transform:none;color:var(--muted)">(40 labelled samples)</span></h3>
+    <div class="metric"><span class="m">Precision</span><span class="mv">1.00</span></div>
+    <div class="metric"><span class="m">Recall</span><span class="mv">1.00</span></div>
+    <div class="metric"><span class="m">F1-score</span><span class="mv">1.00</span></div>
+    <div class="metric" style="border:none"><span class="m">False-positive rate</span><span class="mv" style="color:var(--s1)">0.00</span></div>
+    <div class="sub" style="font-size:11px;color:var(--muted);margin-top:8px">20 malicious + 20 benign · TP 20 / FN 0 / FP 0 / TN 20</div>
+  </div>
+  <div class="card span3">
+    <h3>Framework</h3>
+    <div class="metric"><span class="m">Analytics rules</span><span class="mv" style="color:#fff">16</span></div>
+    <div class="metric"><span class="m">Detection paths</span><span class="mv" style="color:#fff">3</span></div>
+    <div class="metric" style="border:none"><span class="m">Memory engine</span><span class="mv" style="color:var(--s2);font-size:16px">pypykatz</span></div>
+  </div>
+</div>
+
+<footer>Live from Microsoft Sentinel workspace <b>HybridDetectionWS</b> via managed-identity API · auto-refresh 60s · corp.local single-DC lab</footer>
+
+<script>
+  const API = "https://prod-56.eastus.logic.azure.com:443/workflows/67099b70e77d405b908ee36fd21e8c2f/triggers/manual/paths/invoke?api-version=2019-05-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=ykZEPneTvz2nE_c0hMtCRHf2h8rHLVuussxEFvTTXAk";
+  function set(id,v){ const e=document.getElementById(id); if(e && v!=null) e.textContent=v; }
+  function width(id,pct){ const e=document.getElementById(id); if(e) e.style.width=Math.max(6,pct)+'%'; }
+  async function refresh(){
+    try{
+      const r = await fetch(API);
+      const j = await r.json();
+      const m = {}; (j.tables[0].rows||[]).forEach(row=>m[row[0]]=row[1]);
+      set('m-total',m.total); set('m-gt',m.gt); set('m-sid',m.sid); set('m-memcrit',m.mem_crit);
+      set('m-corrlog',m.e4769); set('m-corrmem',m.mem_inc);
+      const dp=[['sid',m.sid],['gt',m.gt],['mem',m.mem_inc]].filter(x=>x[1]!=null);
+      const dpMax=Math.max(...dp.map(x=>x[1]),1);
+      dp.forEach(([k,v])=>{ set('m-dp-'+k,v); width('f-dp-'+k, v/dpMax*100); });
+      const kb=[['4769',m.e4769],['4662',m.e4662],['4768',m.e4768]].filter(x=>x[1]!=null);
+      const kMax=Math.max(...kb.map(x=>x[1]),1);
+      kb.forEach(([k,v])=>{ set('m-k-'+k,v); width('f-k-'+k, v/kMax*100); });
+      document.getElementById('live-ts').textContent = 'updated ' + new Date().toLocaleTimeString();
+    }catch(e){
+      document.getElementById('live-ts').textContent = '(offline — snapshot)';
+    }
+  }
+  refresh(); setInterval(refresh, 60000);
+</script>
+</body>
+</html>

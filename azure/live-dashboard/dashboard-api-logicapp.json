@@ -1,0 +1,48 @@
+{
+  "location": "eastus",
+  "identity": { "type": "SystemAssigned" },
+  "properties": {
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Http",
+          "inputs": { "method": "GET", "schema": {} }
+        }
+      },
+      "actions": {
+        "query": {
+          "type": "Http",
+          "runAfter": {},
+          "inputs": {
+            "method": "POST",
+            "uri": "https://api.loganalytics.io/v1/workspaces/7697ee16-3b75-4bac-9191-463241dec30d/query",
+            "body": {
+              "query": "union (SecurityIncident | where TimeGenerated>ago(7d) | summarize v=dcount(IncidentNumber) | extend metric='total'),(SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'Golden Ticket' | summarize v=dcount(IncidentNumber) | extend metric='gt'),(SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'SIDHistory' | summarize v=dcount(IncidentNumber) | extend metric='sid'),(SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'Volatility' | summarize v=dcount(IncidentNumber) | extend metric='mem_inc'),(VolatilityAnalysis_CL | where TimeGenerated>ago(7d) and riskLevel_s=='CRITICAL' | summarize v=count() | extend metric='mem_crit'),(SecurityEvent | where TimeGenerated>ago(24h) | where EventID==4769 | summarize v=count() | extend metric='e4769'),(SecurityEvent | where TimeGenerated>ago(24h) | where EventID==4768 | summarize v=count() | extend metric='e4768'),(SecurityEvent | where TimeGenerated>ago(24h) | where EventID==4662 | summarize v=count() | extend metric='e4662') | project metric, v"
+            },
+            "authentication": {
+              "type": "ManagedServiceIdentity",
+              "audience": "https://api.loganalytics.io"
+            }
+          }
+        },
+        "Response": {
+          "type": "Response",
+          "kind": "Http",
+          "runAfter": { "query": ["Succeeded"] },
+          "inputs": {
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            },
+            "body": "@body('query')"
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}
