@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse in Active Directory\n**MTech Capstone — Microsoft Sentinel Hybrid Detection Framework**\n\nDomain: `corp.local`  |  Domain Controller: `WIN-09GD99A8DPG`  |  Three detection paths: **Kerberos Logs**, **SIDHistory Inventory**, **LSASS Memory Forensics (pypykatz)**\n\n---"
+        "json": "# Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse in Active Directory\n**MTech Capstone — Microsoft Sentinel Hybrid Detection Framework**\n\nDomain: `corp.local`  |  Domain Controller: `WIN-09GD99A8DPG`  |  Three detection paths: **Kerberos Logs**, **SIDHistory Inventory**, **LSASS Memory Forensics**\n\n---"
       },
       "name": "title"
     },
@@ -12,7 +12,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union (SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'Golden Ticket' | summarize Value=dcount(IncidentNumber) | extend Metric='Golden Ticket', Ord=1),(SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'SIDHistory' | summarize Value=dcount(IncidentNumber) | extend Metric='SIDHistory Abuse', Ord=2),(VolatilityAnalysis_CL | where TimeGenerated>ago(7d) | where riskLevel_s=='CRITICAL' | summarize Value=count() | extend Metric='Memory CRITICAL (pypykatz)', Ord=3),(SecurityIncident | where TimeGenerated>ago(7d) | summarize Value=dcount(IncidentNumber) | extend Metric='Total Incidents', Ord=4) | order by Ord asc | project Metric, Value",
+        "query": "union (SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'Golden Ticket' | summarize Value=dcount(IncidentNumber) | extend Metric='Golden Ticket', Ord=1),(SecurityIncident | where TimeGenerated>ago(7d) | where Title has 'SIDHistory' | summarize Value=dcount(IncidentNumber) | extend Metric='SIDHistory Abuse', Ord=2),(VolatilityAnalysis_CL | where TimeGenerated>ago(7d) | where riskLevel_s=='CRITICAL' | summarize Value=count() | extend Metric='Memory CRITICAL', Ord=3),(SecurityIncident | where TimeGenerated>ago(7d) | summarize Value=dcount(IncidentNumber) | extend Metric='Total Incidents', Ord=4) | order by Ord asc | project Metric, Value",
         "size": 3,
         "title": "Detection Summary — last 7 days",
         "queryType": 0,
@@ -59,7 +59,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "SecurityIncident | where TimeGenerated>ago(7d) | extend DetectionType=case(Title has 'Golden Ticket','Golden Ticket (Log)',Title has 'SIDHistory','SIDHistory Abuse',Title has 'Volatility','Memory Forensics (pypykatz)','Other') | where DetectionType!='Other' | summarize Incidents=dcount(IncidentNumber) by DetectionType",
+        "query": "SecurityIncident | where TimeGenerated>ago(7d) | extend DetectionType=case(Title has 'Golden Ticket','Golden Ticket (Log)',Title has 'SIDHistory','SIDHistory Abuse',Title has 'Volatility','Memory Forensics','Other') | where DetectionType!='Other' | summarize Incidents=dcount(IncidentNumber) by DetectionType",
         "size": 0,
         "title": "Incidents by Detection Path (7d)",
         "queryType": 0,
@@ -91,7 +91,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Novel Contribution - Memory-Based Golden Ticket Detection (pypykatz)\nLSASS memory dumps are analysed offline. A **TGT (krbtgt) for a user account resident in the Domain Controller's memory** is the signature of an injected Pass-the-Ticket **Golden Ticket**. Standard **Volatility 3 cannot extract Kerberos tickets** on modern Windows - this framework uses **pypykatz**, which does. This is the detection that log-only tools miss. (MITRE **T1558.001**)"
+        "json": "## Novel Contribution - Memory-Based Golden Ticket Detection\nLSASS memory dumps are captured on the Domain Controller and analysed offline to recover the forged Kerberos ticket directly from memory. A **TGT (krbtgt) for a user account resident in the DC's memory**, with an anomalous ~10-year lifetime, is the signature of an injected Pass-the-Ticket **Golden Ticket**. This is the actual artifact - evidence that log-only tools cannot provide. (MITRE **T1558.001**)"
       },
       "name": "memory-header"
     },
@@ -101,7 +101,7 @@
         "version": "KqlItem/1.0",
         "query": "VolatilityAnalysis_CL | where TimeGenerated>ago(7d) and riskLevel_s=='CRITICAL' | extend Detail=tostring(parse_json(kerberosAnalysis_indicators_s)[0].description) | extend TargetAccount=tostring(extract(@'account\\(s\\) \\[([^\\]]+)\\]',1,Detail)) | project TimeGenerated, Risk=riskLevel_s, Indicator=indicator_s, TargetAccount, Tickets=toint(kerberosAnalysis_totalTickets_d), Dump=blobName_s | order by TimeGenerated desc | take 15",
         "size": 0,
-        "title": "Volatility / pypykatz — CRITICAL memory detections (forged TGT found in LSASS)",
+        "title": "Memory Forensics — CRITICAL detections (forged TGT recovered from LSASS)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "table",

@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# Dual-Track Attack Corroboration Dashboard\n**The same attack, confirmed by two independent methods** - Kerberos log analytics (behavioural) AND LSASS memory forensics via pypykatz (the actual forged ticket). Log-only SIEM shows an *inference*; this shows the *artifact*.\n\n---"
+        "json": "# Dual-Track Attack Corroboration Dashboard\n**The same attack, confirmed by two independent methods** - Kerberos log analytics (behavioural) AND LSASS memory forensics (the actual forged ticket). Log-only SIEM shows an *inference*; this shows the *artifact*.\n\n---"
       },
       "name": "title"
     },
@@ -98,7 +98,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "union (SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'Golden Ticket' | summarize Incidents=dcount(IncidentNumber) | extend Detection='Golden Ticket (Log)'),(SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'SIDHistory' | summarize Incidents=dcount(IncidentNumber) | extend Detection='SIDHistory (Inventory)'),(SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'Volatility' | summarize Incidents=dcount(IncidentNumber) | extend Detection='Memory (pypykatz)') | project Detection, Incidents",
+        "query": "union (SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'Golden Ticket' | summarize Incidents=dcount(IncidentNumber) | extend Detection='Golden Ticket (Log)'),(SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'SIDHistory' | summarize Incidents=dcount(IncidentNumber) | extend Detection='SIDHistory (Inventory)'),(SecurityIncident | where TimeGenerated>ago(24h) | where Title has 'Volatility' | summarize Incidents=dcount(IncidentNumber) | extend Detection='Memory Forensics') | project Detection, Incidents",
         "size": 0,
         "title": "Incidents by detection path (24h)",
         "queryType": 0,
