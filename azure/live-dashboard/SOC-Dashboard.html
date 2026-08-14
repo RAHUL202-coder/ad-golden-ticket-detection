@@ -87,7 +87,7 @@
   <div class="card kpi accent-1 span3"><div class="ic">📊</div><div class="lbl">Total Incidents (7d)</div><div class="val" id="m-total">—</div><div class="sub">across all detection paths</div></div>
   <div class="card kpi accent-2 span2"><div class="ic">⚔️</div><div class="lbl">Golden Ticket</div><div class="val" id="m-gt">—</div><div class="sub">log incidents</div></div>
   <div class="card kpi accent-3 span2"><div class="ic">👥</div><div class="lbl">SIDHistory</div><div class="val" id="m-sid">—</div><div class="sub">inventory incidents</div></div>
-  <div class="card kpi accent-c span2"><div class="ic">🧠</div><div class="lbl">Memory CRITICAL</div><div class="val crit" id="m-memcrit">—</div><div class="sub">forged tickets (pypykatz)</div></div>
+  <div class="card kpi accent-c span2"><div class="ic">🧠</div><div class="lbl">Memory CRITICAL</div><div class="val crit" id="m-memcrit">—</div><div class="sub">forged tickets recovered</div></div>
   <div class="card kpi accent-g span3"><div class="ic">✅</div><div class="lbl">Corroboration</div><div class="val good" style="font-size:26px;margin-top:12px">CONFIRMED</div><div class="sub">Log + Memory agree</div></div>
 </div>
 
@@ -107,7 +107,7 @@
     <h3>Incidents by Detection Path (7d)</h3>
     <div class="bar-row"><span class="nm">SIDHistory</span><div class="track"><div class="fill" id="f-dp-sid" style="width:100%;background:var(--s3)"></div></div><span class="num" id="m-dp-sid">—</span></div>
     <div class="bar-row"><span class="nm">Golden Ticket (Log)</span><div class="track"><div class="fill" id="f-dp-gt" style="width:46%;background:var(--s2)"></div></div><span class="num" id="m-dp-gt">—</span></div>
-    <div class="bar-row"><span class="nm">Memory (pypykatz)</span><div class="track"><div class="fill" id="f-dp-mem" style="width:45%;background:var(--s1)"></div></div><span class="num" id="m-dp-mem">—</span></div>
+    <div class="bar-row"><span class="nm">Memory Forensics</span><div class="track"><div class="fill" id="f-dp-mem" style="width:45%;background:var(--s1)"></div></div><span class="num" id="m-dp-mem">—</span></div>
     <div class="legend"><span><i class="dot2" style="background:var(--s3)"></i>Inventory</span><span><i class="dot2" style="background:var(--s2)"></i>Kerberos logs</span><span><i class="dot2" style="background:var(--s1)"></i>Memory forensics</span></div>
   </div>
 </div>
@@ -163,7 +163,7 @@
     <h3>Framework</h3>
     <div class="metric"><span class="m">Analytics rules</span><span class="mv" style="color:#fff">16</span></div>
     <div class="metric"><span class="m">Detection paths</span><span class="mv" style="color:#fff">3</span></div>
-    <div class="metric" style="border:none"><span class="m">Memory engine</span><span class="mv" style="color:var(--s2);font-size:16px">pypykatz</span></div>
+    <div class="metric" style="border:none"><span class="m">Memory analysis</span><span class="mv" style="color:var(--s2);font-size:16px">LSASS forensics</span></div>
   </div>
 </div>
 
