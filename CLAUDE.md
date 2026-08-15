@@ -300,6 +300,12 @@ AMA v1.44.0.0 = Arc-managed processes (MonAgentCore/Host/Launcher/Manager). NO W
   config + rebuild the pipe. Restarting ExtensionService alone (or killing MonAgent procs) does NOT work.
   Verify with `SecurityEvent | summarize max(TimeGenerated)` < 5 min. Durable fix = DC VM must never suspend.
 
+## Current state & cost (2026-08-15)
+- **STOPPED for credits** (Stop-Lab): VM deallocated, Function stopped, queues 0/0, **dashboard live (HTTP 200)**. Restart = power on DC + `START-LAB.cmd`.
+- ⚠️ **AMA unreliable — DC keeps VMware-suspending → log path breaks.** Arc-stack restart sometimes fixes it (~14 min), sometimes not if the VM re-suspends. Memory + SIDHistory paths don't need AMA. Durable fix = VM never suspends.
+- **Cost (INR):** MTD spend ₹2,517.91; VM Standard_D2s_v3 ~₹192/day running vs ~₹10–20/day stopped. **Free-trial (created ~2026-07-17) lapses ~2026-08-16.** Credit *remaining* is portal-only (Subscriptions→Overview); CLI consumption API returns null.
+- **Video-Recording-Script.md/pdf** added (`docs/`) — 10-scene ON-SCREEN/SAY walkthrough narration.
+
 ## Viva / presentation artifacts (2026-08-14/15)
 - **`docs/Demo-Steps.md` / `Demo-Steps.pdf`** — full RUN/SHOW/SAY viva playbook (pre-viva checklist, 8-step demo, fallback table, cheat-sheet).
 - **`docs/Viva-QA-Notes.md`** — ready answers: where-to-check outputs, 6 Kerberos events (4672/4662 explained), correlation mechanism, Splunk/EDR/MDI honest positioning, "why a framework", data-flow transports, key numbers.
