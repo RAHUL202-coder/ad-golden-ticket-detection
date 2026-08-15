@@ -295,6 +295,17 @@ Data lands in `SIDHistoryInventory_CL` with `_s`/`_d`/`_b` column suffixes.
 AMA v1.44.0.0 = Arc-managed processes (MonAgentCore/Host/Launcher/Manager). NO Windows service.
 - Stop ingestion: delete `dcr-dc-association`; Resume: recreate it.
 - Re-onboarding Arc to a new sub does NOT refresh AMA's cached config — delete the AMA extension, clear the mcs cache, reinstall.
+- **VMware suspend kills AMA (recurring).** Reliable heal (2026-08-14): restart Arc stack IN ORDER
+  `himds` → `GCArcService` → `ExtensionService`, then **WAIT ~14 min** for the agent to re-pull DCR
+  config + rebuild the pipe. Restarting ExtensionService alone (or killing MonAgent procs) does NOT work.
+  Verify with `SecurityEvent | summarize max(TimeGenerated)` < 5 min. Durable fix = DC VM must never suspend.
+
+## Viva / presentation artifacts (2026-08-14/15)
+- **`docs/Demo-Steps.md` / `Demo-Steps.pdf`** — full RUN/SHOW/SAY viva playbook (pre-viva checklist, 8-step demo, fallback table, cheat-sheet).
+- **`docs/Viva-QA-Notes.md`** — ready answers: where-to-check outputs, 6 Kerberos events (4672/4662 explained), correlation mechanism, Splunk/EDR/MDI honest positioning, "why a framework", data-flow transports, key numbers.
+- **Final live verdict:** `Administrator | Log 4769=24 | Mem=4 | 3650-day | CONFIRMED - Log + Memory`.
+- **De-branding done:** both workbooks + live SOC dashboard say "Memory Forensics"/"LSASS forensics" — NO "pypykatz", NOT "Volatility" (false). Internal worker + skills still name pypykatz (the truth). See memory `feedback-style`.
+- **No fabricated accuracy** — cite `docs/benchmark-results.md` (P/R/F1=1.00, 40 samples), never 87.2/90/100.
 
 ## Pause / Resume (VM is the cost driver)
 ```powershell
