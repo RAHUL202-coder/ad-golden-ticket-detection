@@ -91,7 +91,7 @@
     {
       "type": 1,
       "content": {
-        "json": "## Novel Contribution - Memory-Based Golden Ticket Detection\nLSASS memory dumps are captured on the Domain Controller and analysed offline to recover the forged Kerberos ticket directly from memory. A **TGT (krbtgt) for a user account resident in the DC's memory**, with an anomalous ~10-year lifetime, is the signature of an injected Pass-the-Ticket **Golden Ticket**. This is the actual artifact - evidence that log-only tools cannot provide. (MITRE **T1558.001**)"
+        "json": "## Novel Contribution - Memory-Based Golden Ticket Detection\nLSASS memory is captured on the Domain Controller, uploaded to **Azure Blob Storage**, and dispatched via **Service Bus** to a dedicated **memory-analysis VM**, where it is analysed to recover the forged Kerberos ticket directly from memory. The result flows back into Sentinel (`VolatilityAnalysis_CL`). A **TGT (krbtgt) for a user account resident in the DC's memory**, with an anomalous ~10-year lifetime, is the signature of an injected Pass-the-Ticket **Golden Ticket** - the actual artifact that log-only tools cannot provide. (MITRE **T1558.001**)"
       },
       "name": "memory-header"
     },
