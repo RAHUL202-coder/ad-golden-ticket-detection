@@ -170,7 +170,8 @@
 <footer>Live from Microsoft Sentinel workspace <b>HybridDetectionWS</b> via managed-identity API · auto-refresh 60s · corp.local single-DC lab</footer>
 
 <script>
-  const API = "https://prod-56.eastus.logic.azure.com:443/workflows/67099b70e77d405b908ee36fd21e8c2f/triggers/manual/paths/invoke?api-version=2019-05-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=ykZEPneTvz2nE_c0hMtCRHf2h8rHLVuussxEFvTTXAk";
+  // NOTE: API URL + SAS signature removed for public repo. The live dashboard uses the real value.
+  const API = "https://<LOGIC-APP-HOST>/workflows/<WORKFLOW-ID>/triggers/manual/paths/invoke?api-version=2019-05-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=<REDACTED-SAS-SIGNATURE>";
   function set(id,v){ const e=document.getElementById(id); if(e && v!=null) e.textContent=v; }
   function width(id,pct){ const e=document.getElementById(id); if(e) e.style.width=Math.max(6,pct)+'%'; }
   async function refresh(){
