@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse in Active Directory\n**MTech Capstone — Microsoft Sentinel Hybrid Detection Framework**\n\nDomain: `corp.local`  |  Domain Controller: `WIN-09GD99A8DPG`  |  Three detection paths: **Kerberos Logs**, **SIDHistory Inventory**, **LSASS Memory Forensics**\n\n---"
+        "json": "# Memory-Based Detection of Golden Ticket &amp; SIDHistory Abuse in Active Directory\n**Microsoft Sentinel Hybrid Detection Framework**\n\nDomain: `corp.local`  |  Domain Controller: `WIN-09GD99A8DPG`  |  Three detection paths: **Kerberos Logs**, **SIDHistory Inventory**, **LSASS Memory Forensics**\n\n---"
       },
       "name": "title"
     },

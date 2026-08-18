@@ -1,4 +1,4 @@
-# MTech Capstone — Full Detection Pipeline Flowchart
+# Full Detection Pipeline Flowchart
 
 ```mermaid
 flowchart TD

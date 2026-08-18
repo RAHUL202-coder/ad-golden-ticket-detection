@@ -233,8 +233,7 @@ Full rules live in [`kql/`](kql/), [`azure/volatility-worker/`](azure/volatility
 
 ## 👤 Author
 
-**P. Rahul** — MTech (Cybersecurity), REVA University
-Capstone project under REVA Academy for Corporate Excellence (RACE).
+This is an academic security-research proof-of-concept demonstrating memory-forensic detection of Active Directory attacks on Microsoft Sentinel.
 
 ## 📄 License
 
