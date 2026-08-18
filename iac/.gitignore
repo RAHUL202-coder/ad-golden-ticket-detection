@@ -1,0 +1,10 @@
+# Never commit secrets or locally-compiled artifacts
+*.secret.json
+*.secret.bicepparam
+*.local.json
+*.pem
+*.key
+id_rsa*
+# Compiled ARM output from `az bicep build`
+main.json
+modules/*.json
